@@ -267,12 +267,13 @@ def get_reagent_color(reagent_code):
     return 'lightgray'
 
 
+
 def create_tray_visualization(config):
     locations = config.get("tray_locations", [])  # Default to an empty list if missing
     fig = go.Figure()
 
     for i, loc in enumerate(locations):
-        # Ensure loc is not None and has the required keys
+        # Ensure loc is valid
         if loc and isinstance(loc, dict):
             reagent_code = loc.get("reagent_code", "Unknown")
             tests_possible = loc.get("tests_possible", "N/A")
@@ -290,6 +291,7 @@ def create_tray_visualization(config):
         row = i // 4  # Adjust rows for a 4-column layout
         col = i % 4
 
+        # Add the rectangle for the box
         fig.add_trace(
             go.Scatter(
                 x=[col, col + 1, col + 1, col, col],
@@ -300,11 +302,22 @@ def create_tray_visualization(config):
                 line=dict(color="black", width=1),
                 mode="lines",
                 name=f"LOC-{i+1}",
-                text=f"LOC-{i+1}<br>{reagent_code}<br>Tests: {tests_possible}<br>Exp: #{experiment}",
-                hoverinfo="text",
             )
         )
 
+        # Add static text annotation at the center of each box
+        fig.add_annotation(
+            x=col + 0.5,  # Center of the box
+            y=row + 0.5,  # Center of the box
+            text=f"<b>LOC-{i+1}</b><br>{reagent_code}<br>Tests: {tests_possible}<br>Exp: #{experiment}",
+            showarrow=False,
+            font=dict(size=14, color="black"),  # Bold black font
+            align="center",  # Center the text
+            xanchor="center",
+            yanchor="middle",
+        )
+
+    # Update layout settings for the chart
     fig.update_layout(
         height=600,
         width=800,
@@ -314,6 +327,7 @@ def create_tray_visualization(config):
         title="Tray Configuration",
     )
     return fig
+
 
 
 def display_results(config, selected_experiments):
