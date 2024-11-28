@@ -63,6 +63,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS work_orders
              (id INTEGER PRIMARY KEY, customer TEXT, date TEXT, status TEXT)''')
 c.execute('''CREATE TABLE IF NOT EXISTS trays
              (id INTEGER PRIMARY KEY, wo_id INTEGER, customer TEXT, date TEXT, configuration TEXT)''')
+c.execute('''CREATE TABLE IF NOT EXISTS production
+             (id INTEGER PRIMARY KEY, tray_id INTEGER, start_date TEXT, end_date TEXT, status TEXT)''')
 conn.commit()
 
 # Main function
