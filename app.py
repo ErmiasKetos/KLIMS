@@ -430,6 +430,58 @@ def manage_production():
                 complete_production(tray)
                 st.success("Production completed")
                 st.rerun()
+def manage_inventory():
+    st.header("Inventory Management")
+    
+    conn = create_connection()
+    c = conn.cursor()
+    
+    # Work order status tracking
+    st.subheader("Work Order Status")
+    c.execute("""
+        SELECT 
+            i.wo_id,
+            wo.customer,
+            wo.requester,
+            i.date,
+            i.status,
+            COALESCE(t.id, 'Pending') as tray_id,
+            COALESCE(p.status, 'Not Started') as production_status,
+            COALESCE(s.tracking_number, 'Not Shipped') as shipping_status
+        FROM inventory i
+        JOIN work_orders wo ON i.wo_id = wo.id
+        LEFT JOIN trays t ON wo.id = t.wo_id
+        LEFT JOIN production p ON wo.id = p.wo_id
+        LEFT JOIN shipping s ON wo.id = s.wo_id
+        ORDER BY i.date DESC
+    """)
+    
+    results = c.fetchall()
+    if results:
+        df = pd.DataFrame(results, columns=[
+            'Work Order', 'Customer', 'Requester', 'Date', 
+            'Status', 'Tray ID', 'Production', 'Shipping'
+        ])
+        st.dataframe(df, use_container_width=True)
+
+        # Tray reagent usage for selected work order
+        if 'current_wo' in st.session_state and 'config' in st.session_state.tray_state:
+            st.subheader("Reagent Usage")
+            config = st.session_state.tray_state['config']
+            if config:
+                reagents_df = pd.DataFrame([
+                    {
+                        'Work Order': st.session_state.current_wo,
+                        'Reagent': loc['reagent_code'],
+                        'Location': f"LOC-{idx + 1}",
+                        'Tests': loc['tests_possible']
+                    }
+                    for idx, loc in enumerate(config['tray_locations'])
+                    if loc
+                ])
+                st.dataframe(reagents_df, use_container_width=True)
+    
+    conn.close()
 
 def manage_shipping():
     st.header("Shipping")
