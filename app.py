@@ -1,8 +1,15 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-from datetime import datetime
+import plotly.express as px
+from datetime import datetime, timedelta
 import uuid
+import base64
+from io import BytesIO
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import slack
 
 # Import the ReagentOptimizer
 from reagent_optimizer import ReagentOptimizer
@@ -35,12 +42,36 @@ st.markdown("""
     .stDataFrame {
         font-size: 14px;
     }
+    .menu-item {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #4CAF50;
+        color: white;
+        text-align: center;
+        text-decoration: none;
+        font-size: 16px;
+        margin: 4px 2px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
+    .menu-item:hover {
+        background-color: #45a049;
+    }
+    .dashboard-card {
+        background-color: white;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
 if 'jobs' not in st.session_state:
     st.session_state.jobs = []
+if 'page' not in st.session_state:
+    st.session_state.page = "Dashboard"
 
 # Utility functions
 def generate_id():
@@ -61,6 +92,76 @@ def get_reagent_color(reagent_code):
             return color
     return 'lightgray'  # Default color if not found
 
+def send_email(recipient, subject, body):
+    # Replace with your email configuration
+    sender_email = "your_email@example.com"
+    sender_password = "your_email_password"
+
+    message = MIMEMultipart()
+    message["From"] = sender_email
+    message["To"] = recipient
+    message["Subject"] = subject
+    message.attach(MIMEText(body, "plain"))
+
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(message)
+
+def send_slack_message(channel, message):
+    # Replace with your Slack API token
+    slack_token = "your_slack_api_token"
+    client = slack.WebClient(token=slack_token)
+    client.chat_postMessage(channel=channel, text=message)
+
+def notify_job_status(job, status):
+    email_subject = f"Job {job['id']} Status Update"
+    email_body = f"Job {job['id']} for customer {job['customer']} is now {status}."
+    send_email(job['email'], email_subject, email_body)
+
+    slack_message = f"Job {job['id']} for customer {job['customer']} is now {status}."
+    send_slack_message("#lab-notifications", slack_message)
+
+# Dashboard
+def dashboard():
+    st.header("Dashboard")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+        st.subheader("Total Jobs")
+        st.metric("Jobs", len(st.session_state.jobs))
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col2:
+        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+        st.subheader("Open Jobs")
+        open_jobs = len([job for job in st.session_state.jobs if job['status'] == 'Open'])
+        st.metric("Open", open_jobs)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    with col3:
+        st.markdown('<div class="dashboard-card">', unsafe_allow_html=True)
+        st.subheader("Closed Jobs")
+        closed_jobs = len([job for job in st.session_state.jobs if job['status'] == 'Closed'])
+        st.metric("Closed", closed_jobs)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Job Status Chart
+    status_counts = pd.DataFrame(st.session_state.jobs).groupby('status').size().reset_index(name='count')
+    fig = px.pie(status_counts, values='count', names='status', title='Job Status Distribution')
+    st.plotly_chart(fig)
+
+    # Recent Jobs
+    st.subheader("Recent Jobs")
+    recent_jobs = sorted(st.session_state.jobs, key=lambda x: x['date'], reverse=True)[:5]
+    if recent_jobs:
+        df = pd.DataFrame(recent_jobs)
+        st.dataframe(df)
+    else:
+        st.info("No recent jobs.")
+
 # Job Management
 def job_management():
     st.header("Job Management")
@@ -71,12 +172,14 @@ def job_management():
         with st.form("new_job"):
             customer = st.text_input("Customer Name")
             analyst = st.text_input("Analyst Name")
+            email = st.text_input("Email")
             date = st.date_input("Request Date")
             if st.form_submit_button("Create New Job"):
                 new_job = {
                     "id": generate_id(),
                     "customer": customer,
                     "analyst": analyst,
+                    "email": email,
                     "date": date.strftime("%Y-%m-%d"),
                     "status": "Open",
                     "tray_configuration": None,
@@ -84,6 +187,7 @@ def job_management():
                     "shipment_info": None
                 }
                 st.session_state.jobs.append(new_job)
+                notify_job_status(new_job, "received")
                 st.success("New job created successfully!")
 
     with col2:
@@ -120,6 +224,7 @@ def tray_configuration():
                         config = optimizer.optimize_tray_configuration(selected_experiments)
                         job_index = next(i for i, job in enumerate(st.session_state.jobs) if job['id'] == job_id)
                         st.session_state.jobs[job_index]['tray_configuration'] = config
+                        notify_job_status(st.session_state.jobs[job_index], "in progress")
                         st.success("Tray configuration optimized and saved successfully!")
                     except ValueError as e:
                         st.error(str(e))
@@ -228,6 +333,7 @@ def production_and_qc():
                     "date": datetime.now().strftime("%Y-%m-%d")
                 }
                 st.session_state.jobs[job_index]['production_record'] = production_record
+                notify_job_status(st.session_state.jobs[job_index], "production completed")
                 st.success("Production and QC record saved!")
 
         with col2:
@@ -263,6 +369,7 @@ def shipping_and_logging():
                         "shipping_date": shipping_date.strftime("%Y-%m-%d")
                     }
                     st.session_state.jobs[job_index]['shipment_info'] = shipment_info
+                    notify_job_status(st.session_state.jobs[job_index], "shipped")
                     st.success("Shipment logged successfully!")
 
         with col2:
@@ -274,7 +381,38 @@ def shipping_and_logging():
         if job['shipment_info']:
             if st.button("Close Job"):
                 st.session_state.jobs[job_index]['status'] = 'Closed'
+                notify_job_status(st.session_state.jobs[job_index], "closed")
                 st.success("Job closed successfully!")
+
+# Analytics
+def analytics():
+    st.header("Analytics")
+
+    # Job Status Over Time
+    jobs_df = pd.DataFrame(st.session_state.jobs)
+    jobs_df['date'] = pd.to_datetime(jobs_df['date'])
+    jobs_df = jobs_df.sort_values('date')
+
+    status_counts = jobs_df.groupby(['date', 'status']).size().unstack(fill_value=0).cumsum()
+    fig = px.area(status_counts, title="Job Status Over Time")
+    st.plotly_chart(fig)
+
+    # Average Job Duration
+    closed_jobs = jobs_df[jobs_df['status'] == 'Closed']
+    if not closed_jobs.empty:
+        closed_jobs['duration'] = (pd.to_datetime(closed_jobs['shipment_info'].apply(lambda x: x['shipping_date'] if x else None)) - closed_jobs['date']).dt.days
+        avg_duration = closed_jobs['duration'].mean()
+        st.metric("Average Job Duration (days)", f"{avg_duration:.2f}")
+
+    # Top Customers
+    top_customers = jobs_df['customer'].value_counts().head(5)
+    fig = px.bar(top_customers, title="Top 5 Customers")
+    st.plotly_chart(fig)
+
+    # Experiment Popularity
+    experiment_counts = jobs_df['tray_configuration'].apply(lambda x: x['results'].keys() if x else []).explode().value_counts()
+    fig = px.pie(experiment_counts, values=experiment_counts.values, names=experiment_counts.index, title="Experiment Popularity")
+    st.plotly_chart(fig)
 
 # Job Search and Reporting
 def job_search_and_reporting():
@@ -294,12 +432,9 @@ def job_search_and_reporting():
         
         if st.button("Export to CSV"):
             csv = df.to_csv(index=False)
-            st.download_button(
-                label="Download CSV",
-                data=csv,
-                file_name="job_report.csv",
-                mime="text/csv"
-            )
+            b64 = base64.b64encode(csv.encode()).decode()
+            href = f'<a href="data:file/csv;base64,{b64}" download="job_report.csv">Download CSV File</a>'
+            st.markdown(href, unsafe_allow_html=True)
     else:
         st.info("No jobs found matching the search criteria.")
 
@@ -307,18 +442,30 @@ def job_search_and_reporting():
 def main():
     st.title("🧪 Reagent Tray LIMS")
 
-    # Sidebar navigation
-    page = st.sidebar.radio("Navigate", ["Job Management", "Tray Configuration", "Production & QC", "Shipping & Logging", "Job Search & Reporting"])
+    # Horizontal top menu
+    menu_items = ["Dashboard", "Job Management", "Tray Configuration", "Production & QC", "Shipping & Logging", "Analytics", "Job Search & Reporting"]
+    menu_html = "".join(f'<a class="menu-item" href="#{item.lower().replace(" ", "-")}">{item}</a>' for item in menu_items)
+    st.markdown(f'<div style="text-align: center;">{menu_html}</div>', unsafe_allow_html=True)
 
-    if page == "Job Management":
+    # Page navigation
+    for item in menu_items:
+        if st.button(item, key=f"menu_{item}"):
+            st.session_state.page = item
+
+    # Display the selected page
+    if st.session_state.page == "Dashboard":
+        dashboard()
+    elif st.session_state.page == "Job Management":
         job_management()
-    elif page == "Tray Configuration":
+    elif st.session_state.page == "Tray Configuration":
         tray_configuration()
-    elif page == "Production & QC":
+    elif st.session_state.page == "Production & QC":
         production_and_qc()
-    elif page == "Shipping & Logging":
+    elif st.session_state.page == "Shipping & Logging":
         shipping_and_logging()
-    elif page == "Job Search & Reporting":
+    elif st.session_state.page == "Analytics":
+        analytics()
+    elif st.session_state.page == "Job Search & Reporting":
         job_search_and_reporting()
 
 if __name__ == "__main__":
