@@ -51,6 +51,34 @@ def search_and_reports():
            display_search_results(results)
 
    st.divider()
+
+   # Custom CSS
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #f0f2f6;
+    }
+    .main {
+        padding: 2rem;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+    .stExpander {
+        background-color: white;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .css-1d391kg {
+        padding-top: 3rem;
+    }
+</style>
+""", unsafe_allow_html=True)
    
    # Report generation 
    st.subheader("Generate Reports")
@@ -246,7 +274,7 @@ def display_results(config, selected_experiments):
     with col1:
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
-        st.plotly_chart(fig, use_container_width=false)
+        st.plotly_chart(fig, use_container_width=true)
 
     with col2:
         st.subheader("Results Summary")
