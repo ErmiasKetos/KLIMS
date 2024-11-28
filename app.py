@@ -430,9 +430,9 @@ def configure_tray():
                 )
                 
                 # Convert selected experiments to their IDs
-                st.session_state.tray_state['selected_experiments'] = [
-                    exp.split(":")[0] for exp in selected_experiments
-                ]
+               st.session_state.tray_state['selected_experiments'] = [
+                   exp.split(":")[0].strip() for exp in selected_experiments if ":" in exp
+               ]
 
                 if st.button("Optimize Configuration"):
                     if st.session_state.tray_state['selected_experiments']:
