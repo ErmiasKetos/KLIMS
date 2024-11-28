@@ -17,40 +17,113 @@ from reagent_optimizer import ReagentOptimizer
 # Set page config
 st.set_page_config(page_title="Reagent Tray LIMS", page_icon="🧪", layout="wide")
 
-# Initialize session state for storing data (replace with database in production)
-if 'jobs' not in st.session_state:
-    st.session_state.jobs = []
-if 'inventory' not in st.session_state:
-    st.session_state.inventory = []
-if 'equipment' not in st.session_state:
-    st.session_state.equipment = [
-        {"id": "1", "name": "Spectrophotometer", "status": "Online", "last_reading": "0.75 Abs"},
-        {"id": "2", "name": "pH Meter", "status": "Online", "last_reading": "pH 7.2"},
-        {"id": "3", "name": "Centrifuge", "status": "Offline", "last_reading": "N/A"},
-    ]
 
 # Utility functions
 def generate_id():
     return str(uuid.uuid4())
 
-def get_reagent_color(reagent_code):
-    color_map = {
-        'gray': ['KR1E', 'KR1S', 'KR2S', 'KR3E', 'KR3S'],
-        'violet': ['KR7E1', 'KR7E2', 'KR8E1', 'KR8E2'],
-        'green': ['KR9E1', 'KR9E2', 'KR17E1', 'KR17E2'],
-        'orange': ['KR10E1', 'KR10E2', 'KR10E3'],
-        'blue': ['KR16E1', 'KR16E2', 'KR16E3', 'KR16E4'],
-        'red': ['KR29E1', 'KR29E2', 'KR29E3'],
-        'yellow': ['KR35E1', 'KR35E2']
-    }
-    for color, reagents in color_map.items():
-        if any(reagent_code.startswith(r) for r in reagents):
-            return color
-    return 'lightgray'  # Default color if not found
+# Define all your functions here
+def dashboard():
+    st.header("Dashboard")
+    col1, col2, col3 = st.columns(3)
 
-# Main app
+    jobs_df = pd.DataFrame(st.session_state.jobs)
+
+    with col1:
+        st.metric("Total Jobs", len(jobs_df))
+
+    with col2:
+        open_jobs = len(jobs_df[jobs_df['status'] == 'Open']) if 'status' in jobs_df.columns else 0
+        st.metric("Open Jobs", open_jobs)
+
+    with col3:
+        closed_jobs = len(jobs_df[jobs_df['status'] == 'Closed']) if 'status' in jobs_df.columns else 0
+        st.metric("Closed Jobs", closed_jobs)
+
+    # Job Status Chart
+    if 'status' in jobs_df.columns:
+        status_counts = jobs_df['status'].value_counts().reset_index()
+        status_counts.columns = ['status', 'count']
+        fig = px.pie(status_counts, values='count', names='status', title='Job Status Distribution')
+        st.plotly_chart(fig)
+    else:
+        st.warning("Job status information is not available.")
+
+    # Recent Jobs
+    st.subheader("Recent Jobs")
+    if not jobs_df.empty:
+        if 'date' in jobs_df.columns:
+            jobs_df['date'] = pd.to_datetime(jobs_df['date'])
+            recent_jobs = jobs_df.sort_values('date', ascending=False).head(5)
+            st.dataframe(recent_jobs)
+        else:
+            st.dataframe(jobs_df.head(5))
+    else:
+        st.info("No recent jobs.")
+
+def job_management():
+    st.header("Job Management")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.form("new_job"):
+            customer = st.text_input("Customer Name")
+            analyst = st.text_input("Analyst Name")
+            date = st.date_input("Request Date")
+            status = st.selectbox("Status", options=["Open", "Closed"])
+            if st.form_submit_button("Create New Job"):
+                new_job = {
+                    "id": generate_id(),
+                    "customer": customer,
+                    "analyst": analyst,
+                    "date": date.isoformat(),
+                    "status": status,
+                    "tray_configuration": None,
+                    "production_record": None,
+                    "shipment_info": None
+                }
+                st.session_state.jobs.append(new_job)
+                st.success("New job created successfully!")
+
+    with col2:
+        if st.session_state.jobs:
+            df = pd.DataFrame(st.session_state.jobs)
+            st.dataframe(df)
+        else:
+            st.info("No jobs yet.")
+
+def tray_configuration():
+    st.header("Tray Configuration")
+    # Implement tray configuration logic here
+
+def inventory_management():
+    st.header("Inventory Management")
+    # Implement inventory management logic here
+
+def production_and_qc():
+    st.header("Production and QC")
+    # Implement production and QC logic here
+
+def shipping_and_logging():
+    st.header("Shipping and Logging")
+    # Implement shipping and logging logic here
+
+def equipment_integration():
+    st.header("Equipment Integration")
+    # Implement equipment integration logic here
+
+def analytics():
+    st.header("Analytics")
+    # Implement analytics logic here
+
+# Main function
 def main():
     st.title("🧪 Reagent Tray LIMS")
+
+    # Initialize session state
+    if 'jobs' not in st.session_state:
+        st.session_state.jobs = []
 
     # Horizontal top menu using tabs
     tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
