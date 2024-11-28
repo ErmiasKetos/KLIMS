@@ -82,34 +82,49 @@ def main():
     with tab8:
         analytics()
 
+if __name__ == "__main__":
+    main()
+
+
 def dashboard():
     st.header("Dashboard")
     col1, col2, col3 = st.columns(3)
 
+    jobs_df = pd.DataFrame(st.session_state.jobs)
+
     with col1:
-        st.metric("Total Jobs", len(st.session_state.jobs))
+        st.metric("Total Jobs", len(jobs_df))
 
     with col2:
-        open_jobs = len([job for job in st.session_state.jobs if job['status'] == 'Open'])
+        open_jobs = len(jobs_df[jobs_df['status'] == 'Open']) if 'status' in jobs_df.columns else 0
         st.metric("Open Jobs", open_jobs)
 
     with col3:
-        closed_jobs = len([job for job in st.session_state.jobs if job['status'] == 'Closed'])
+        closed_jobs = len(jobs_df[jobs_df['status'] == 'Closed']) if 'status' in jobs_df.columns else 0
         st.metric("Closed Jobs", closed_jobs)
 
     # Job Status Chart
-    status_counts = pd.DataFrame(st.session_state.jobs).groupby('status').size().reset_index(name='count')
-    fig = px.pie(status_counts, values='count', names='status', title='Job Status Distribution')
-    st.plotly_chart(fig)
+    if 'status' in jobs_df.columns:
+        status_counts = jobs_df['status'].value_counts().reset_index()
+        status_counts.columns = ['status', 'count']
+        fig = px.pie(status_counts, values='count', names='status', title='Job Status Distribution')
+        st.plotly_chart(fig)
+    else:
+        st.warning("Job status information is not available.")
 
     # Recent Jobs
     st.subheader("Recent Jobs")
-    recent_jobs = sorted(st.session_state.jobs, key=lambda x: x['date'], reverse=True)[:5]
-    if recent_jobs:
-        df = pd.DataFrame(recent_jobs)
-        st.dataframe(df)
+    if not jobs_df.empty:
+        if 'date' in jobs_df.columns:
+            jobs_df['date'] = pd.to_datetime(jobs_df['date'])
+            recent_jobs = jobs_df.sort_values('date', ascending=False).head(5)
+            st.dataframe(recent_jobs)
+        else:
+            st.dataframe(jobs_df.head(5))
     else:
         st.info("No recent jobs.")
+
+    # Add more visualizations or metrics as needed
 
 def job_management():
     st.header("Job Management")
@@ -121,13 +136,14 @@ def job_management():
             customer = st.text_input("Customer Name")
             analyst = st.text_input("Analyst Name")
             date = st.date_input("Request Date")
+            status = st.selectbox("Status", options=["Open", "Closed"])
             if st.form_submit_button("Create New Job"):
                 new_job = {
                     "id": generate_id(),
                     "customer": customer,
                     "analyst": analyst,
                     "date": date.isoformat(),
-                    "status": "Open",
+                    "status": status,
                     "tray_configuration": None,
                     "production_record": None,
                     "shipment_info": None
