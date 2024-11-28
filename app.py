@@ -593,93 +593,108 @@ def manage_work_orders():
            conn.commit()
            conn.close()
 
+
 def configure_tray():
-   # Initialize session states
-   if 'pending_configuration' not in st.session_state:
-       st.session_state.pending_configuration = False
-   if 'selected_experiments' not in st.session_state:
+   if not hasattr(st.session_state, 'selected_experiments'):
        st.session_state.selected_experiments = []
-   if 'config_initialized' not in st.session_state:
-       st.session_state.config_initialized = False
-   if 'current_config' not in st.session_state:
-       st.session_state.current_config = None
-   if 'experiment_selection' not in st.session_state:
-       st.session_state.experiment_selection = []
+   if not hasattr(st.session_state, 'config'):
+       st.session_state.config = None
 
    st.header("Tray Configuration")
+   
+   conn = create_connection()
+   c = conn.cursor()
 
-   if st.session_state.pending_configuration or 'current_wo' in st.session_state:
+   # Work order selection
+   if 'current_wo' in st.session_state:
        wo_id = st.session_state.current_wo
-       conn = create_connection()
-       c = conn.cursor()
        c.execute("SELECT id, customer, requester FROM work_orders WHERE id=?", (wo_id,))
        wo = c.fetchone()
-       conn.close()
 
        if wo:
-           col1, col2 = st.columns([2, 1])
+           col1, col2 = st.columns([3, 1])
+           
            with col1:
                st.info(f"Configuring Work Order: {wo[0]} - {wo[1]} ({wo[2]})")
                
-               def on_experiment_change():
-                   st.session_state.config_initialized = True
-
-               optimizer = ReagentOptimizer()
-               experiments = optimizer.get_available_experiments()
-               
-               selected = st.multiselect(
-                   "Select Experiments",
-                   [f"{exp['id']}: {exp['name']}" for exp in experiments],
-                   key=f"experiment_selector_{wo_id}",
-                   default=st.session_state.experiment_selection,
-                   on_change=on_experiment_change
-               )
-               st.session_state.experiment_selection = selected
-
-               if st.button("Optimize Configuration", key=f"optimize_button_{wo_id}"):
-                   if selected:
-                       exp_ids = [int(exp.split(':')[0]) for exp in selected]
+               # Sidebar for experiment selection
+               with st.sidebar:
+                   st.header("Available Experiments")
+                   optimizer = ReagentOptimizer()
+                   experiments = optimizer.get_available_experiments()
+                   
+                   selected_experiments = []
+                   for exp in experiments:
+                       if st.checkbox(f"{exp['id']}: {exp['name']}", 
+                                    key=f"exp_{wo_id}_{exp['id']}",
+                                    value=exp['id'] in st.session_state.selected_experiments):
+                           selected_experiments.append(exp['id'])
+                   
+                   st.markdown("---")
+                   st.markdown("Or enter experiment numbers manually:")
+                   manual_input = st.text_input(
+                       "Experiment numbers (comma-separated)", 
+                       key=f"manual_input_{wo_id}",
+                       placeholder="e.g., 1, 16, 29"
+                   )
+                   
+                   if manual_input:
                        try:
-                           config = optimizer.optimize_tray_configuration(exp_ids)
-                           st.session_state.current_config = config
-                           
-                           conn = create_connection()
-                           c = conn.cursor()
-                           
-                           c.execute("""INSERT INTO trays 
-                                      (wo_id, customer, requester, date, configuration)
-                                      VALUES (?, ?, ?, ?, ?)""",
-                                   (wo[0], wo[1], wo[2], 
-                                    datetime.now().strftime('%Y-%m-%d'), str(config)))
-                           
-                           c.execute("""UPDATE inventory 
-                                      SET status = 'Configured'
-                                      WHERE wo_id = ?""", (wo[0],))
-                           conn.commit()
-                           conn.close()
-                           
-                           next_step, tab = get_next_step(wo[0])
-                           st.success(f"Configuration saved. Next step: {next_step}")
-                           
-                           # Reset states after successful configuration
-                           st.session_state.pending_configuration = False
-                           st.session_state.config_initialized = False
-                           st.session_state.experiment_selection = []
-                           if 'current_wo' in st.session_state:
+                           selected_experiments = [int(num.strip()) 
+                                                 for num in manual_input.split(',') 
+                                                 if num.strip()]
+                       except ValueError:
+                           st.error("Please enter valid experiment numbers")
+                   
+                   st.session_state.selected_experiments = selected_experiments
+                   
+                   optimize_button = st.button("Optimize Configuration", 
+                                             key=f"optimize_{wo_id}")
+                   
+                   if optimize_button:
+                       if not selected_experiments:
+                           st.error("Please select at least one experiment")
+                       else:
+                           try:
+                               with st.spinner("Optimizing tray configuration..."):
+                                   config = optimizer.optimize_tray_configuration(
+                                       selected_experiments
+                                   )
+                               st.session_state.config = config
+                               
+                               # Save configuration
+                               c.execute("""INSERT INTO trays 
+                                          (wo_id, customer, requester, date, configuration)
+                                          VALUES (?, ?, ?, ?, ?)""",
+                                       (wo[0], wo[1], wo[2], 
+                                        datetime.now().strftime('%Y-%m-%d'), 
+                                        str(config)))
+                               
+                               # Update inventory status
+                               c.execute("""UPDATE inventory 
+                                          SET status = 'Configured'
+                                          WHERE wo_id = ?""", (wo[0],))
+                               conn.commit()
+                               
+                               next_step, tab = get_next_step(wo[0])
+                               st.success(f"Configuration saved. Next step: {next_step}")
+                               
+                               # Clear states after successful save
+                               st.session_state.selected_experiments = []
                                del st.session_state.current_wo
-                           
-                       except Exception as e:
-                           st.error(f"Error: {e}")
-                   else:
-                       st.warning("Please select at least one experiment")
-
+                               
+                           except Exception as e:
+                               st.error(f"Error: {e}")
+           
+           # Display configuration results
            with col2:
-               if st.session_state.current_config:
-                   st.plotly_chart(create_tray_visualization(st.session_state.current_config))
+               if st.session_state.config:
+                   display_results(
+                       st.session_state.config, 
+                       selected_experiments
+                   )
 
    else:
-       conn = create_connection()
-       c = conn.cursor()
        c.execute("""SELECT wo.id, wo.customer, wo.requester 
                     FROM work_orders wo
                     LEFT JOIN trays t ON wo.id = t.wo_id
@@ -689,11 +704,40 @@ def configure_tray():
        if not pending_wo:
            st.info("No work orders pending configuration")
        else:
-           st.info("Select a work order from the Work Orders tab to begin configuration")
-       conn.close()
+           st.info("Select a work order from the Work Orders tab")
 
-   # Search configurations section remains the same...
+   # Search existing configurations
+   st.subheader("Search Existing Configurations")
+   search_cols = st.columns([2, 2, 1])
+   search_wo = search_cols[0].text_input("Work Order ID", key="search_wo_config")
+   search_customer = search_cols[1].text_input("Customer Name", key="search_customer_config")
+   
+   if search_wo or search_customer:
+       query = """SELECT t.*, wo.customer, wo.requester 
+                  FROM trays t
+                  JOIN work_orders wo ON t.wo_id = wo.id
+                  WHERE 1=1"""
+       params = []
+       
+       if search_wo:
+           query += " AND t.wo_id LIKE ?"
+           params.append(f"%{search_wo}%")
+       if search_customer:
+           query += " AND wo.customer LIKE ?"
+           params.append(f"%{search_customer}%")
+           
+       c.execute(query, params)
+       configs = c.fetchall()
+       
+       if configs:
+           for config in configs:
+               with st.expander(f"Configuration: {config[1]} - {config[5]}"):
+                   config_data = eval(config[5])
+                   st.plotly_chart(create_tray_visualization(config_data))
+       else:
+           st.info("No configurations found")
 
+   conn.close()
 
 def create_tray_visualization(config):
     # [Previous visualization code remains the same]
