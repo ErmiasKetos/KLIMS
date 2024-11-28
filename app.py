@@ -11,38 +11,51 @@ import xlsxwriter
 st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
    # Custom CSS
 st.markdown("""
+st.markdown("""
 <style>
     .stApp {
-        background-color: #f0f2f6;
+        background-color: #f0f2f6; /* Light background color for the app */
     }
     .main {
-        padding: 2rem;
+        padding: 2rem; /* Padding for main content */
     }
     .stDataFrame, .stPlotlyChart {
-        margin-top: 20px;
-        margin-bottom: 20px;
-     }
-     .stMetric {
-         margin-bottom: 10px;
-     }
+        margin-top: 20px; /* Add spacing above charts and tables */
+        margin-bottom: 20px; /* Add spacing below charts and tables */
+    }
+    .stMetric {
+        margin-bottom: 10px; /* Add spacing below metric elements */
+    }
     .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        font-weight: bold;
+        background-color: #4CAF50; /* Green button background */
+        color: white; /* White button text */
+        font-weight: bold; /* Bold button text */
+        border: none; /* Remove button border */
+        padding: 0.5rem 1rem; /* Add padding for better appearance */
+        border-radius: 5px; /* Rounded corners for buttons */
+        cursor: pointer; /* Pointer cursor on hover */
     }
     .stButton>button:hover {
-        background-color: #45a049;
+        background-color: #45a049; /* Darker green on hover */
     }
     .stExpander {
-        background-color: white;
-        border-radius: 5px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        background-color: white; /* White background for expander sections */
+        border-radius: 5px; /* Rounded corners for expanders */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow effect */
+        padding: 1rem; /* Padding inside expanders */
+    }
+    hr {
+        border: 0;
+        height: 1px;
+        background: #ddd; /* Light gray line for separators */
+        margin: 20px 0; /* Spacing above and below separators */
     }
     .css-1d391kg {
-        padding-top: 3rem;
+        padding-top: 3rem; /* Top padding adjustment */
     }
 </style>
 """, unsafe_allow_html=True)
+
    
 
 def search_and_reports():
