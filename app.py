@@ -951,52 +951,72 @@ def show_dashboard():
     conn.close()
 
 def main():
-    st.title("🧪 Reagent LIMS")
-    
-    # CSS styling
-    st.markdown("""
-        <style>
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 2px;
-        }
-        .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            background-color: #F0F2F6;
-            border-radius: 4px;
-            padding: 10px;
-        }
-        .stTabs [aria-selected="true"] {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .stButton>button {
-            background-color: #4CAF50;
-            color: white;
-            font-weight: bold;
-        }
-        .stButton>button:hover {
-            background-color: #45a049;
-        }
-        .reportview-container .main .block-container {
-            padding-top: 1rem;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # Initialize session state for tab management
-    if 'current_tab' not in st.session_state:
-        st.session_state.current_tab = 0
-    
-    # Tab navigation
-    tabs = st.tabs(["Dashboard", "Work Orders", "Tray Configuration", 
-                    "Inventory", "Production", "Shipping"])
-    
-    with tabs[0]: show_dashboard()
-    with tabs[1]: manage_work_orders()
-    with tabs[2]: configure_tray()
-    with tabs[3]: manage_inventory()
-    with tabs[4]: manage_production()
-    with tabs[5]: manage_shipping()
+   st.title("🧪 Reagent LIMS")
+   
+   # CSS styling
+   st.markdown("""
+       <style>
+       .stTabs [data-baseweb="tab-list"] {
+           gap: 2px;
+       }
+       .stTabs [data-baseweb="tab"] {
+           height: 50px;
+           background-color: #F0F2F6;
+           border-radius: 4px;
+           padding: 10px;
+       }
+       .stTabs [aria-selected="true"] {
+           background-color: #4CAF50;
+           color: white;
+       }
+       .stButton>button {
+           background-color: #4CAF50;
+           color: white;
+           font-weight: bold;
+       }
+       .stButton>button:hover {
+           background-color: #45a049;
+       }
+       .reportview-container .main .block-container {
+           padding-top: 1rem;
+       }
+       .stDataFrame {
+           background-color: white;
+           padding: 1rem;
+           border-radius: 4px;
+           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+       }
+       .stPlotlyChart {
+           background-color: white;
+           padding: 1rem;
+           border-radius: 4px;
+           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+       }
+       </style>
+   """, unsafe_allow_html=True)
+   
+   # Initialize session state for tab management
+   if 'current_tab' not in st.session_state:
+       st.session_state.current_tab = 0
+   
+   # Tab navigation
+   tabs = st.tabs([
+       "Dashboard", 
+       "Work Orders", 
+       "Tray Configuration", 
+       "Inventory", 
+       "Production", 
+       "Shipping",
+       "Search & Reports"
+   ])
+   
+   with tabs[0]: show_dashboard()
+   with tabs[1]: manage_work_orders()
+   with tabs[2]: configure_tray()
+   with tabs[3]: manage_inventory()
+   with tabs[4]: manage_production()
+   with tabs[5]: manage_shipping()
+   with tabs[6]: search_and_reports()
 
 if __name__ == "__main__":
-    main()
+   main()
