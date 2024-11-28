@@ -296,9 +296,9 @@ def display_results(config, selected_experiments):
             x=0.5,  # Center title
             font=dict(size=20)
         ),
-        margin=dict(l=40, r=20, t=40, b=20)
+        margin=dict(l=20, r=20, t=40, b=20)
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, use_container_width=False)
 
     # Spacing between chart and tables
     st.markdown("---")
