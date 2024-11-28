@@ -279,10 +279,14 @@ def create_tray_visualization(config):
 
 
 
+
 def display_results(config, selected_experiments):
-    # Responsive container for the chart and tables
+    # Left-align the tray configuration section with visual separation
     st.markdown("### Tray Configuration and Results")
     
+    # Add a visual separator (line or spacing)
+    st.markdown("<hr style='border: 1px solid #ddd; margin: 10px 0;'>", unsafe_allow_html=True)
+
     # Chart Section
     st.markdown("#### Tray Configuration")
     fig = create_tray_visualization(config)
@@ -298,10 +302,10 @@ def display_results(config, selected_experiments):
         ),
         margin=dict(l=20, r=20, t=40, b=20)
     )
-    st.plotly_chart(fig, use_container_width=False)
+    st.plotly_chart(fig, use_container_width=True)
 
     # Spacing between chart and tables
-    st.markdown("---")
+    st.markdown("<hr style='border: 1px solid #ddd; margin: 20px 0;'>", unsafe_allow_html=True)
     
     # Results Summary Table
     st.markdown("#### Results Summary")
@@ -317,10 +321,10 @@ def display_results(config, selected_experiments):
     ])
     
     # Full-width results table
-    st.dataframe(results_df, use_container_width=False)
+    st.dataframe(results_df, use_container_width=True)
 
     # Spacing between sections
-    st.markdown("---")
+    st.markdown("<hr style='border: 1px solid #ddd; margin: 20px 0;'>", unsafe_allow_html=True)
     
     # Detailed Results
     st.markdown("#### Detailed Results")
@@ -339,9 +343,9 @@ def display_results(config, selected_experiments):
                 ])
                 
                 # Full-width detailed results table
-                st.dataframe(set_df, use_container_width=False)
+                st.dataframe(set_df, use_container_width=True)
                 st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
-                st.markdown("---")
+                st.markdown("<hr style='border: 0.5px dashed #ddd; margin: 10px 0;'>", unsafe_allow_html=True)
 
 def manage_work_orders():
     st.header("Work Orders")
