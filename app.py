@@ -7,6 +7,13 @@ from datetime import datetime
 from io import BytesIO
 import xlsxwriter
 
+if 'tray_state' not in st.session_state:
+    st.session_state.tray_state = {
+        'config': None,  # Initialize with default values
+        'selected_experiments': []  # Example default for selected experiments
+    }
+
+
 # Page config
 st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
    # Custom CSS
