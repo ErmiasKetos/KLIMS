@@ -441,36 +441,63 @@ def manage_work_orders():
 
 
 
+
 def configure_tray():
     st.header("Tray Configuration")
-    
-    # "Optimize Configuration" button
-    if st.button("Optimize Configuration"):
-        try:
-            with st.spinner("Optimizing configuration..."):
-                # Run configuration logic here
-                config = {
-                    # Example configuration data
-                    "tray_locations": [
-                        {"reagent_code": "KR1E", "tests_possible": 100, "experiment": 1},
-                        {"reagent_code": "KR2E", "tests_possible": 200, "experiment": 2},
-                    ],
-                    "results": {
-                        1: {"name": "Experiment 1", "total_tests": 300, "sets": []},
-                        2: {"name": "Experiment 2", "total_tests": 400, "sets": []},
-                    },
-                }
-                st.session_state.tray_configuration = config
-            st.success("Configuration saved. Results generated below.")
-        except Exception as e:
-            st.error(f"Error optimizing configuration: {e}")
 
-    # Vertical separator for spacing
+    # Ensure session state is initialized for tray configuration
+    if "tray_configuration" not in st.session_state:
+        st.session_state.tray_configuration = None
+
+    # Show work order information (adjust according to your app logic)
+    if "current_wo" in st.session_state:
+        st.info(f"Configuring Work Order: {st.session_state.current_wo}")
+
+    # Dropdown or multiselect to choose experiments
+    optimizer = ReagentOptimizer()
+    experiments = optimizer.get_available_experiments()
+    experiment_options = [f"{exp['id']}: {exp['name']}" for exp in experiments]
+
+    selected_experiments = st.multiselect(
+        "Select Experiments for Tray Configuration:",
+        options=experiment_options,
+        key="selected_experiments",
+    )
+
+    # Extract selected experiment IDs
+    selected_experiment_ids = [
+        int(exp.split(":")[0].strip()) for exp in selected_experiments
+    ]
+
+    # Optimize Configuration Button
+    if st.button("Optimize Configuration"):
+        if selected_experiment_ids:
+            try:
+                with st.spinner("Optimizing tray configuration..."):
+                    # Run the optimizer with the selected experiments
+                    config = optimizer.optimize_tray_configuration(selected_experiment_ids)
+
+                    # Save the tray configuration in session state
+                    st.session_state.tray_configuration = config
+
+                    # Optionally, save the configuration to the inventory (database)
+                    save_configuration_to_inventory(
+                        st.session_state.current_wo, config
+                    )
+
+                st.success("Configuration saved. Results are displayed below.")
+            except Exception as e:
+                st.error(f"Error optimizing configuration: {e}")
+        else:
+            st.warning("Please select at least one experiment.")
+
+    # Vertical Separator
     st.markdown("<hr style='border: 1px solid #ddd;'>", unsafe_allow_html=True)
 
-    # Display Tray Configuration and Results if available
-    if "tray_configuration" in st.session_state:
+    # Display results if a configuration exists
+    if st.session_state.tray_configuration:
         display_results(st.session_state.tray_configuration)
+
 
 def display_results(config):
     st.markdown("### Tray Configuration and Results")
@@ -484,9 +511,9 @@ def display_results(config):
         title=dict(
             text="Tray Configuration",
             x=0.5,
-            font=dict(size=20)
+            font=dict(size=20),
         ),
-        margin=dict(l=20, r=20, t=40, b=20)
+        margin=dict(l=20, r=20, t=40, b=20),
     )
     st.plotly_chart(fig, use_container_width=True)
 
@@ -498,13 +525,15 @@ def display_results(config):
     tray_life = min(result["total_tests"] for result in config["results"].values())
     st.metric("Tray Life (Tests)", tray_life)
 
-    results_df = pd.DataFrame([
-        {
-            "Experiment": f"{result['name']} (#{exp_num})",
-            "Total Tests": result['total_tests']
-        }
-        for exp_num, result in config["results"].items()
-    ])
+    results_df = pd.DataFrame(
+        [
+            {
+                "Experiment": f"{result['name']} (#{exp_num})",
+                "Total Tests": result["total_tests"],
+            }
+            for exp_num, result in config["results"].items()
+        ]
+    )
     st.dataframe(results_df, use_container_width=True)
 
     # Separator
@@ -516,85 +545,18 @@ def display_results(config):
         with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
             for i, set_info in enumerate(result.get("sets", [])):
                 st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
-                set_df = pd.DataFrame([
-                    {
-                        "Reagent": placement["reagent_code"],
-                        "Location": f"LOC-{placement['location'] + 1}",
-                        "Tests Possible": placement["tests"]
-                    }
-                    for placement in set_info.get("placements", [])
-                ])
+                set_df = pd.DataFrame(
+                    [
+                        {
+                            "Reagent": placement["reagent_code"],
+                            "Location": f"LOC-{placement['location'] + 1}",
+                            "Tests Possible": placement["tests"],
+                        }
+                        for placement in set_info.get("placements", [])
+                    ]
+                )
                 st.dataframe(set_df, use_container_width=True)
 
-
-
-
-def save_configuration(wo_id, customer, requester, config):
-    conn = create_connection()
-    c = conn.cursor()
-    
-    try:
-        c.execute("""INSERT INTO trays 
-                     (wo_id, customer, requester, date, configuration)
-                     VALUES (?, ?, ?, ?, ?)""",
-                 (wo_id, customer, requester, 
-                  datetime.now().strftime('%Y-%m-%d'), 
-                  str(config)))
-        
-        c.execute("""UPDATE inventory 
-                     SET status = 'Configured'
-                     WHERE wo_id = ?""", (wo_id,))
-        conn.commit()
-        
-    except Exception as e:
-        st.error(f"Error saving configuration: {str(e)}")
-        raise e
-    finally:
-        conn.close()
-
-def manage_production():
-    st.header("Production")
-    
-    conn = create_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT t.id, wo.id, wo.customer, wo.requester, t.date 
-        FROM trays t
-        JOIN work_orders wo ON t.wo_id = wo.id
-        LEFT JOIN production p ON t.id = p.tray_id
-        WHERE p.id IS NULL
-    """)
-    pending_trays = c.fetchall()
-    conn.close()
-
-    if not pending_trays:
-        st.info("No trays pending production")
-        return
-
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        tray = st.selectbox("Select Tray for Production",
-                           pending_trays,
-                           format_func=lambda x: f"{x[1]} - {x[2]} ({x[3]})")
-
-        if tray:
-            steps = {"Reagent Loading": ["Volume Check", "Placement Verification"],
-                    "Sealing": ["Seal Integrity", "Temperature Check"],
-                    "Labeling": ["Label Accuracy", "Barcode Verification"],
-                    "QC": ["Visual Inspection", "Documentation"]}
-
-            completed = {}
-            for step, checks in steps.items():
-                with st.expander(step):
-                    completed[step] = all(
-                        st.checkbox(check, key=f"{tray[0]}_{check}")
-                        for check in checks
-                    )
-
-            if st.button("Complete Production") and all(completed.values()):
-                complete_production(tray)
-                st.success("Production completed")
-                st.rerun()
 def manage_inventory():
     st.header("Inventory Management")
     
