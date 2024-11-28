@@ -8,7 +8,7 @@ from io import BytesIO
 import xlsxwriter
 
 # Page config
-st.set_page_config(page_title="Reagent LIMS", page_icon="🧪", layout="wide")
+st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
 
 def search_and_reports():
    st.header("Search & Reports")
@@ -246,7 +246,7 @@ def display_results(config, selected_experiments):
     with col1:
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=false)
 
     with col2:
         st.subheader("Results Summary")
