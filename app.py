@@ -7,6 +7,35 @@ from datetime import datetime
 from io import BytesIO
 import xlsxwriter
 
+   # Custom CSS
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #f0f2f6;
+    }
+    .main {
+        padding: 2rem;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+    .stExpander {
+        background-color: white;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .css-1d391kg {
+        padding-top: 3rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+   
+
 # Page config
 st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
 
