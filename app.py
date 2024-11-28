@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 from reagent_optimizer import ReagentOptimizer
@@ -7,15 +8,10 @@ import base64
 from io import BytesIO
 from PIL import Image
 import requests
-from streamlit_option_menu import option_menu
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
-
-
-
-
 
 # Set page config
 st.set_page_config(
@@ -72,24 +68,17 @@ def set_png_as_page_bg(png_file):
     st.markdown(page_bg_img, unsafe_allow_html=True)
 
 # Set background image
-set_png_as_page_bg('background.png')  # Make sure to have a background.png file in your project directory
-
-# Slack integration
-slack_token = os.environ.get("SLACK_BOT_TOKEN")
-slack_client = WebClient(token=slack_token)
-
-def send_slack_notification(message, channel="#reagent-tray-lims"):
-    try:
-        response = slack_client.chat_postMessage(channel=channel, text=message)
-        return True
-    except SlackApiError as e:
-        print(f"Error sending message: {e}")
-        return False
+# Uncomment the following line when you have a background.png file
+# set_png_as_page_bg('background.png')
 
 # Email integration
 def send_email_notification(to_email, subject, body):
     from_email = "your-email@example.com"
     password = os.environ.get("EMAIL_PASSWORD")
+
+    if not password:
+        st.warning("Email integration not configured. Skipping notification.")
+        return False
 
     msg = MIMEMultipart()
     msg['From'] = from_email
@@ -107,22 +96,16 @@ def send_email_notification(to_email, subject, body):
         server.quit()
         return True
     except Exception as e:
-        print(f"Error sending email: {e}")
+        st.error(f"Error sending email: {e}")
         return False
 
 # Main function
 def main():
     st.title("🧪 Reagent Tray LIMS")
 
-    # Horizontal menu
-    selected = option_menu(
-        menu_title=None,
-        options=["Dashboard", "Requests", "Tray Configuration", "Inventory", "Production & QC", "Shipping & Logging", "Analytics"],
-        icons=["house", "list-task", "grid-3x3-gap", "box", "gear", "truck", "graph-up"],
-        menu_icon="cast",
-        default_index=0,
-        orientation="horizontal",
-    )
+    # Horizontal menu using st.selectbox
+    menu_options = ["Dashboard", "Requests", "Tray Configuration", "Inventory", "Production & QC", "Shipping & Logging", "Analytics"]
+    selected = st.selectbox("Select a page", menu_options)
 
     if selected == "Dashboard":
         show_dashboard()
@@ -177,7 +160,6 @@ def show_requests():
         if submitted:
             # Add request to database (placeholder)
             st.success(f"Request added for {customer} on {date}")
-            send_slack_notification(f"New request received from {customer} for {date}")
             send_email_notification("requester@example.com", "New Request Received", f"Your request for {date} has been received and is being processed.")
 
     # Display existing requests
@@ -233,6 +215,69 @@ def display_results(config):
     ])
     st.dataframe(results_df)
 
+def create_tray_visualization(config):
+    locations = config["tray_locations"]
+    fig = go.Figure()
+
+    for i, loc in enumerate(locations):
+        row = i // 4
+        col = i % 4
+        color = get_reagent_color(loc['reagent_code']) if loc else 'lightgray'
+        opacity = 0.8 if loc else 0.2
+
+        fig.add_trace(go.Scatter(
+            x=[col, col+1, col+1, col, col],
+            y=[row, row, row+1, row+1, row],
+            fill="toself",
+            fillcolor=color,
+            opacity=opacity,
+            line=dict(color="black", width=1),
+            mode="lines",
+            name=f"LOC-{i+1}",
+            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+            hoverinfo="text"
+        ))
+
+        fig.add_annotation(
+            x=(col + col + 1) / 2,
+            y=(row + row + 1) / 2,
+            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+            showarrow=False,
+            font=dict(color="black", size=8),
+            align="center",
+            xanchor="center",
+            yanchor="middle"
+        )
+
+    fig.update_layout(
+        title="Tray Configuration",
+        showlegend=False,
+        height=600,
+        width=800,
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+
+    return fig
+
+def get_reagent_color(reagent_code):
+    color_map = {
+        'gray': ['KR1E', 'KR1S', 'KR2S', 'KR3E', 'KR3S', 'KR4E', 'KR4S', 'KR5E', 'KR5S', 'KR6E1', 'KR6E2', 'KR6E3', 'KR13E1', 'KR13S', 'KR14E', 'KR14S', 'KR15E', 'KR15S'],
+        'violet': ['KR7E1', 'KR7E2', 'KR8E1', 'KR8E2', 'KR19E1', 'KR19E2', 'KR19E3', 'KR20E', 'KR36E1', 'KR36E2', 'KR40E1', 'KR40E2'],
+        'green': ['KR9E1', 'KR9E2', 'KR17E1', 'KR17E2', 'KR17E3', 'KR28E1', 'KR28E2', 'KR28E3'],
+        'orange': ['KR10E1', 'KR10E2', 'KR10E3', 'KR12E1', 'KR12E2', 'KR12E3', 'KR18E1', 'KR18E2', 'KR22E1', 'KR27E1', 'KR27E2', 'KR42E1', 'KR42E2'],
+        'white': ['KR11E', 'KR21E1'],
+        'blue': ['KR16E1', 'KR16E2', 'KR16E3', 'KR16E4', 'KR30E1', 'KR30E2', 'KR30E3', 'KR31E1', 'KR31E2', 'KR34E1', 'KR34E2'],
+        'red': ['KR29E1', 'KR29E2', 'KR29E3'],
+        'yellow': ['KR35E1', 'KR35E2']
+    }
+    for color, reagents in color_map.items():
+        if any(reagent_code.startswith(r) for r in reagents):
+            return color
+    return 'lightgray'  # Default color if not found
+
 def show_inventory():
     st.header("Inventory Management")
     
@@ -280,7 +325,6 @@ def show_production_and_qc():
 
     if st.button("Complete Production & QC"):
         st.success("Production and QC completed successfully!")
-        send_slack_notification("A new tray has completed production and QC.")
         send_email_notification("requester@example.com", "Tray Production Complete", "Your requested tray has completed production and quality control checks.")
 
 def show_shipping_and_logging():
@@ -299,7 +343,6 @@ def show_shipping_and_logging():
         if submitted:
             # Log shipment (placeholder)
             st.success(f"Shipment logged for {customer} with tracking number {tracking_number}")
-            send_slack_notification(f"New shipment sent to {customer} with tracking number {tracking_number}")
             send_email_notification("requester@example.com", "Shipment Sent", f"Your order has been shipped with tracking number {tracking_number}")
 
     # Display shipment log
