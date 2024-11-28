@@ -388,6 +388,7 @@ def manage_work_orders():
                 st.session_state.current_wo = selected_wo
                 st.session_state.current_tab = 2  # Switch to Tray Configuration tab
 
+
 def configure_tray():
     st.header("Tray Configuration")
     
@@ -416,45 +417,49 @@ def configure_tray():
                 optimizer = ReagentOptimizer()
                 experiments = optimizer.get_available_experiments()
                 
-                # Replace checkboxes with a dropdown multiselect
+                # Dropdown for selecting experiments
                 experiment_options = [f"{exp['id']}: {exp['name']}" for exp in experiments]
                 selected_experiments = st.multiselect(
                     "Select Experiments for Tray Configuration:",
                     options=experiment_options,
-                    default=[
-                        f"{exp['id']}: {exp['name']}" 
-                        for exp in experiments 
-                        if exp['id'] in st.session_state.tray_state['selected_experiments']
-                    ],
                     key="experiment_selection"
                 )
                 
-                # Extract the numeric IDs from the selected options
+                # Extract valid IDs
                 st.session_state.tray_state['selected_experiments'] = [
                     exp.split(":")[0].strip() for exp in selected_experiments
                     if exp.split(":")[0].strip().isdigit()
                 ]
 
+                # Validate selected experiments
+                valid_experiment_ids = [str(exp['id']) for exp in experiments]
+                invalid_experiments = [
+                    exp for exp in st.session_state.tray_state['selected_experiments']
+                    if exp not in valid_experiment_ids
+                ]
+                
+                if invalid_experiments:
+                    st.error(f"Invalid experiment numbers: {', '.join(invalid_experiments)}")
+                    return
+
+                # Display debug info
+                st.write("Selected Experiments IDs:", st.session_state.tray_state['selected_experiments'])
+
+                # Optimize configuration
                 if st.button("Optimize Configuration"):
-                    if st.session_state.tray_state['selected_experiments']:
-                        try:
-                            with st.spinner("Optimizing configuration..."):
-                                config = optimizer.optimize_tray_configuration(
-                                    st.session_state.tray_state['selected_experiments']
-                                )
-                            st.session_state.tray_state['config'] = config
-                            
-                            # Save to database
-                            save_configuration(wo[0], wo[1], wo[2], config)
-                            
-                            next_step, tab = get_next_step(wo[0])
-                            st.success(f"Configuration saved. Next step: {next_step}")
-                            st.session_state.current_tab = tab
-                            
-                        except Exception as e:
-                            st.error(f"Configuration error: {str(e)}")
-                    else:
-                        st.warning("Please select at least one experiment")
+                    try:
+                        with st.spinner("Optimizing configuration..."):
+                            config = optimizer.optimize_tray_configuration(
+                                st.session_state.tray_state['selected_experiments']
+                            )
+                        st.session_state.tray_state['config'] = config
+                        
+                        # Save configuration
+                        save_configuration(wo[0], wo[1], wo[2], config)
+                        st.success("Configuration saved successfully.")
+                        
+                    except Exception as e:
+                        st.error(f"Configuration error: {str(e)}")
 
             with col2:
                 if st.session_state.tray_state['config']:
