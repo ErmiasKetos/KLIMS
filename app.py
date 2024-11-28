@@ -3,7 +3,37 @@ import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
 import uuid
+
+# Import the ReagentOptimizer
 from reagent_optimizer import ReagentOptimizer
+
+# Set page config
+st.set_page_config(page_title="Reagent Tray LIMS", page_icon="🧪", layout="wide")
+
+# Custom CSS
+st.markdown("""
+<style>
+    .stApp {
+        background-color: #f0f2f6;
+    }
+    .main {
+        padding: 2rem;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+    }
+    .stExpander {
+        background-color: white;
+        border-radius: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Initialize session state
 if 'requests' not in st.session_state:
@@ -40,26 +70,28 @@ def get_reagent_color(reagent_code):
 def request_management():
     st.header("Request Management")
     
-    # Add new request
-    with st.form("new_request"):
-        customer = st.text_input("Customer Name")
-        date = st.date_input("Request Date")
-        if st.form_submit_button("Add Request"):
-            new_request = {
-                "id": generate_id(),
-                "customer": customer,
-                "date": date.strftime("%Y-%m-%d"),
-                "status": "Pending"
-            }
-            st.session_state.requests.append(new_request)
-            st.success("Request added successfully!")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.form("new_request"):
+            customer = st.text_input("Customer Name")
+            date = st.date_input("Request Date")
+            if st.form_submit_button("Add Request"):
+                new_request = {
+                    "id": generate_id(),
+                    "customer": customer,
+                    "date": date.strftime("%Y-%m-%d"),
+                    "status": "Pending"
+                }
+                st.session_state.requests.append(new_request)
+                st.success("Request added successfully!")
 
-    # Display requests
-    if st.session_state.requests:
-        df = pd.DataFrame(st.session_state.requests)
-        st.dataframe(df)
-    else:
-        st.info("No requests yet.")
+    with col2:
+        if st.session_state.requests:
+            df = pd.DataFrame(st.session_state.requests)
+            st.dataframe(df)
+        else:
+            st.info("No requests yet.")
 
 # Tray Configuration
 def tray_configuration():
@@ -67,62 +99,67 @@ def tray_configuration():
     
     optimizer = ReagentOptimizer()
     
-    # Select experiments
-    available_experiments = optimizer.get_available_experiments()
-    selected_experiments = st.multiselect(
-        "Select Experiments",
-        options=[exp['id'] for exp in available_experiments],
-        format_func=lambda x: next(exp['name'] for exp in available_experiments if exp['id'] == x)
-    )
+    col1, col2 = st.columns(2)
     
-    if st.button("Optimize Configuration"):
-        if not selected_experiments:
-            st.warning("Please select at least one experiment.")
-        else:
-            try:
-                config = optimizer.optimize_tray_configuration(selected_experiments)
-                st.session_state.current_config = config
-                st.success("Tray configuration optimized successfully!")
-            except ValueError as e:
-                st.error(str(e))
+    with col1:
+        available_experiments = optimizer.get_available_experiments()
+        selected_experiments = st.multiselect(
+            "Select Experiments",
+            options=[exp['id'] for exp in available_experiments],
+            format_func=lambda x: next(exp['name'] for exp in available_experiments if exp['id'] == x)
+        )
+        
+        if st.button("Optimize Configuration"):
+            if not selected_experiments:
+                st.warning("Please select at least one experiment.")
+            else:
+                try:
+                    config = optimizer.optimize_tray_configuration(selected_experiments)
+                    st.session_state.current_config = config
+                    st.success("Tray configuration optimized successfully!")
+                except ValueError as e:
+                    st.error(str(e))
     
+    with col2:
+        if 'current_config' in st.session_state:
+            config = st.session_state.current_config
+            
+            # Visualize tray configuration
+            fig = go.Figure()
+            for i, loc in enumerate(config['tray_locations']):
+                row = i // 4
+                col = i % 4
+                color = get_reagent_color(loc['reagent_code']) if loc else 'lightgray'
+                opacity = 0.8 if loc else 0.2
+
+                fig.add_trace(go.Scatter(
+                    x=[col, col+1, col+1, col, col],
+                    y=[row, row, row+1, row+1, row],
+                    fill="toself",
+                    fillcolor=color,
+                    opacity=opacity,
+                    line=dict(color="black", width=1),
+                    mode="lines",
+                    name=f"LOC-{i+1}",
+                    text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+                    hoverinfo="text"
+                ))
+
+            fig.update_layout(
+                title="Optimized Tray Configuration",
+                showlegend=False,
+                height=400,
+                width=400,
+                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                plot_bgcolor="rgba(0,0,0,0)",
+                margin=dict(l=20, r=20, t=40, b=20)
+            )
+            st.plotly_chart(fig)
+
     if 'current_config' in st.session_state:
         config = st.session_state.current_config
         
-        # Visualize tray configuration
-        fig = go.Figure()
-        for i, loc in enumerate(config['tray_locations']):
-            row = i // 4
-            col = i % 4
-            color = get_reagent_color(loc['reagent_code']) if loc else 'lightgray'
-            opacity = 0.8 if loc else 0.2
-
-            fig.add_trace(go.Scatter(
-                x=[col, col+1, col+1, col, col],
-                y=[row, row, row+1, row+1, row],
-                fill="toself",
-                fillcolor=color,
-                opacity=opacity,
-                line=dict(color="black", width=1),
-                mode="lines",
-                name=f"LOC-{i+1}",
-                text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
-                hoverinfo="text"
-            ))
-
-        fig.update_layout(
-            title="Optimized Tray Configuration",
-            showlegend=False,
-            height=600,
-            width=800,
-            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-            plot_bgcolor="rgba(0,0,0,0)",
-            margin=dict(l=20, r=20, t=40, b=20)
-        )
-        st.plotly_chart(fig)
-
-        # Display results summary
         st.subheader("Results Summary")
         tray_life = min(result["total_tests"] for result in config["results"].values())
         st.metric("Tray Life (Tests)", tray_life)
@@ -143,116 +180,132 @@ def tray_configuration():
                     st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
                     st.markdown("---")
 
-    # Option to save the configuration
-    if 'current_config' in st.session_state and st.button("Save Configuration"):
-        new_config = {
-            "id": generate_id(),
-            "configuration": st.session_state.current_config,
-            "date": datetime.now().strftime("%Y-%m-%d")
-        }
-        st.session_state.tray_configurations.append(new_config)
-        st.success("Tray configuration saved!")
+        if st.button("Save Configuration"):
+            new_config = {
+                "id": generate_id(),
+                "configuration": st.session_state.current_config,
+                "date": datetime.now().strftime("%Y-%m-%d")
+            }
+            st.session_state.tray_configurations.append(new_config)
+            st.success("Tray configuration saved!")
+
 # Inventory Management
 def inventory_management():
     st.header("Inventory Management")
     
-    # Add new inventory item
-    with st.form("new_inventory"):
-        reagent = st.text_input("Reagent")
-        batch_number = st.text_input("Batch Number")
-        quantity = st.number_input("Quantity", min_value=0)
-        if st.form_submit_button("Add Inventory Item"):
-            new_item = {
-                "id": generate_id(),
-                "reagent": reagent,
-                "batch_number": batch_number,
-                "quantity": quantity
-            }
-            st.session_state.inventory.append(new_item)
-            st.success("Inventory item added successfully!")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.form("new_inventory"):
+            reagent = st.text_input("Reagent")
+            batch_number = st.text_input("Batch Number")
+            quantity = st.number_input("Quantity", min_value=0)
+            if st.form_submit_button("Add Inventory Item"):
+                new_item = {
+                    "id": generate_id(),
+                    "reagent": reagent,
+                    "batch_number": batch_number,
+                    "quantity": quantity
+                }
+                st.session_state.inventory.append(new_item)
+                st.success("Inventory item added successfully!")
 
-    # Display inventory
-    if st.session_state.inventory:
-        df = pd.DataFrame(st.session_state.inventory)
-        st.dataframe(df)
-    else:
-        st.info("No inventory items yet.")
+    with col2:
+        if st.session_state.inventory:
+            df = pd.DataFrame(st.session_state.inventory)
+            st.dataframe(df)
+        else:
+            st.info("No inventory items yet.")
 
 # Production and QC
 def production_and_qc():
     st.header("Production and QC")
     
-    # Select a tray configuration to produce
-    config_ids = [c['id'] for c in st.session_state.tray_configurations]
-    selected_config = st.selectbox("Select Tray Configuration", config_ids)
+    col1, col2 = st.columns(2)
     
-    if selected_config:
-        production_steps = [
-            "Pour reagents into tray",
-            "Seal tray chambers",
-            "Apply tray label",
-            "Package tray in box"
-        ]
-        qc_checklist = [
-            "Verify reagent volumes",
-            "Check tray seal integrity",
-            "Confirm label accuracy",
-            "Inspect packaging"
-        ]
+    with col1:
+        selected_config = st.selectbox("Select Tray Configuration", 
+                                       options=[c['id'] for c in st.session_state.tray_configurations],
+                                       format_func=lambda x: f"Configuration {x[:8]}...")
         
-        st.subheader("Production Steps")
-        completed_steps = []
-        for step in production_steps:
-            if st.checkbox(step, key=f"prod_{step}"):
-                completed_steps.append(step)
-        
-        st.subheader("QC Checklist")
-        completed_qc = []
-        for item in qc_checklist:
-            if st.checkbox(item, key=f"qc_{item}"):
-                completed_qc.append(item)
-        
-        if st.button("Complete Production & QC"):
-            new_record = {
-                "id": generate_id(),
-                "config_id": selected_config,
-                "completed_steps": completed_steps,
-                "completed_qc": completed_qc,
-                "date": datetime.now().strftime("%Y-%m-%d")
-            }
-            st.session_state.production_records.append(new_record)
-            st.success("Production and QC record saved!")
+        if selected_config:
+            config = next(c for c in st.session_state.tray_configurations if c['id'] == selected_config)
+            
+            production_steps = [
+                "Pour reagents into tray",
+                "Seal tray chambers",
+                "Apply tray label",
+                "Package tray in box"
+            ]
+            
+            qc_checklist = [
+                "Verify reagent volumes",
+                "Check tray seal integrity",
+                "Confirm label accuracy",
+                "Inspect packaging"
+            ]
+            
+            st.subheader("Production Steps")
+            completed_steps = []
+            for step in production_steps:
+                if st.checkbox(step, key=f"prod_{step}"):
+                    completed_steps.append(step)
+            
+            st.subheader("QC Checklist")
+            completed_qc = []
+            for item in qc_checklist:
+                if st.checkbox(item, key=f"qc_{item}"):
+                    completed_qc.append(item)
+            
+            if st.button("Complete Production & QC"):
+                new_record = {
+                    "id": generate_id(),
+                    "config_id": selected_config,
+                    "completed_steps": completed_steps,
+                    "completed_qc": completed_qc,
+                    "date": datetime.now().strftime("%Y-%m-%d")
+                }
+                st.session_state.production_records.append(new_record)
+                st.success("Production and QC record saved!")
+
+    with col2:
+        if st.session_state.production_records:
+            df = pd.DataFrame(st.session_state.production_records)
+            st.dataframe(df)
+        else:
+            st.info("No production records yet.")
 
 # Shipping and Logging
 def shipping_and_logging():
     st.header("Shipping and Logging")
     
-    # Add new shipment
-    with st.form("new_shipment"):
-        config_ids = [c['id'] for c in st.session_state.tray_configurations]
-        selected_config = st.selectbox("Select Tray Configuration", config_ids)
-        tracking_number = st.text_input("Tracking Number")
-        date = st.date_input("Shipping Date")
-        if st.form_submit_button("Log Shipment"):
-            new_shipment = {
-                "id": generate_id(),
-                "config_id": selected_config,
-                "tracking_number": tracking_number,
-                "date": date.strftime("%Y-%m-%d")
-            }
-            st.session_state.shipments.append(new_shipment)
-            st.success("Shipment logged successfully!")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        with st.form("new_shipment"):
+            config_ids = [c['id'] for c in st.session_state.tray_configurations]
+            selected_config = st.selectbox("Select Tray Configuration", options=config_ids)
+            tracking_number = st.text_input("Tracking Number")
+            date = st.date_input("Shipping Date")
+            if st.form_submit_button("Log Shipment"):
+                new_shipment = {
+                    "id": generate_id(),
+                    "config_id": selected_config,
+                    "tracking_number": tracking_number,
+                    "date": date.strftime("%Y-%m-%d")
+                }
+                st.session_state.shipments.append(new_shipment)
+                st.success("Shipment logged successfully!")
 
-    # Display shipments
-    if st.session_state.shipments:
-        df = pd.DataFrame(st.session_state.shipments)
-        st.dataframe(df)
-    else:
-        st.info("No shipments logged yet.")
+    with col2:
+        if st.session_state.shipments:
+            df = pd.DataFrame(st.session_state.shipments)
+            st.dataframe(df)
+        else:
+            st.info("No shipments logged yet.")
 
 # Main app
 def main():
-    st.set_page_config(page_title="Reagent Tray LIMS", page_icon="🧪", layout="wide")
     st.title("🧪 Reagent Tray LIMS")
 
     # Sidebar navigation
