@@ -335,12 +335,19 @@ def analytics():
         fig = px.line(job_trends, x='date', y='count', title='Job Trends')
         st.plotly_chart(fig)
 
+    # Job Status Distribution
+    if st.session_state.jobs:
+        status_counts = pd.DataFrame(st.session_state.jobs)['status'].value_counts().reset_index()
+        status_counts.columns = ['Status', 'Count']
+        fig = px.pie(status_counts, values='Count', names='Status', title='Job Status Distribution')
+        st.plotly_chart(fig)
+
     # Experiment Popularity
     if st.session_state.jobs:
         experiment_counts = pd.DataFrame([
             job['tray_configuration']['tray_locations'] 
             for job in st.session_state.jobs 
-            if job['tray_configuration']
+            if job['tray_configuration'] and isinstance(job['tray_configuration'], dict)
         ]).explode().value_counts().reset_index()
         experiment_counts.columns = ['Experiment', 'Count']
         fig = px.pie(experiment_counts, values='Count', names='Experiment', title='Experiment Popularity')
@@ -357,7 +364,7 @@ def analytics():
         production_times = [
             (datetime.fromisoformat(job['production_record']['date']) - datetime.fromisoformat(job['date'])).days
             for job in st.session_state.jobs
-            if job['production_record']
+            if job['production_record'] and isinstance(job['production_record'], dict) and 'date' in job['production_record']
         ]
         if production_times:
             avg_production_time = sum(production_times) / len(production_times)
@@ -386,8 +393,9 @@ def analytics():
         reagent_usage = pd.DataFrame([
             loc['reagent_code']
             for job in st.session_state.jobs
-            if job['tray_configuration']
+            if job['tray_configuration'] and isinstance(job['tray_configuration'], dict) and 'tray_locations' in job['tray_configuration']
             for loc in job['tray_configuration']['tray_locations']
+            if isinstance(loc, dict) and 'reagent_code' in loc
         ]).value_counts().reset_index()
         reagent_usage.columns = ['Reagent', 'Usage Count']
         fig = px.bar(reagent_usage, x='Reagent', y='Usage Count', title='Reagent Usage Frequency')
