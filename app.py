@@ -9,40 +9,43 @@ from io import BytesIO
 import xlsxwriter
 
 
+
 def search_and_reports():
     st.header("Search & Reports")
     
     search_type = st.radio("Search By", 
-                          ["Work Order", "Customer", "Date Range", "Status"])
+                          ["Work Order", "Customer", "Date Range", "Status"],
+                          key="search_type_radio")
     
     conn = create_connection()
     c = conn.cursor()
     
     if search_type == "Work Order":
-        wo_id = st.text_input("Work Order ID")
+        wo_id = st.text_input("Work Order ID", key="search_wo_id_input")
         if wo_id:
             results = search_by_wo(c, wo_id)
             display_search_results(results)
             
     elif search_type == "Customer":
-        customer = st.text_input("Customer Name")
+        customer = st.text_input("Customer Name", key="search_customer_input")
         if customer:
             results = search_by_customer(c, customer)
             display_search_results(results)
             
     elif search_type == "Date Range":
         col1, col2 = st.columns(2)
-        start_date = col1.date_input("Start Date")
-        end_date = col2.date_input("End Date")
-        if st.button("Search"):
+        start_date = col1.date_input("Start Date", key="search_start_date")
+        end_date = col2.date_input("End Date", key="search_end_date")
+        if st.button("Search", key="date_search_button"):
             results = search_by_date(c, start_date, end_date)
             display_search_results(results)
             
     else:  # Status
         status = st.selectbox("Status", 
                             ["Created", "Configured", "Production Complete", 
-                             "Shipped", "All"])
-        if st.button("Search"):
+                             "Shipped", "All"],
+                            key="status_select")
+        if st.button("Search", key="status_search_button"):
             results = search_by_status(c, status)
             display_search_results(results)
     
@@ -54,9 +57,10 @@ def search_and_reports():
                               ["Work Order Summary",
                                "Production Statistics",
                                "Shipping Log",
-                               "Inventory Status"])
+                               "Inventory Status"],
+                              key="report_type_select")
     
-    if st.button("Generate Report"):
+    if st.button("Generate Report", key="generate_report_button"):
         if report_type == "Work Order Summary":
             generate_wo_summary(c)
         elif report_type == "Production Statistics":
@@ -604,12 +608,16 @@ def manage_work_orders():
     st.dataframe(df, use_container_width=True)
     conn.close()
 
-def configure_tray(): 
-if 'selected_experiments' not in st.session_state:
-        st.session_state.selected_experiments = []
+def configure_tray():
    st.header("Tray Configuration")
    
-   # Check session state first
+   # Initialize session states
+   if 'selected_experiments' not in st.session_state:
+       st.session_state.selected_experiments = []
+   if 'current_config' not in st.session_state:
+       st.session_state.current_config = None
+       
+   # Check session state for current work order
    if 'current_wo' in st.session_state:
        wo_id = st.session_state.current_wo
        conn = create_connection()
@@ -619,47 +627,63 @@ if 'selected_experiments' not in st.session_state:
        conn.close()
        
        if wo:
-           optimizer = ReagentOptimizer()
-           experiments = optimizer.get_available_experiments()
-           selected = st.multiselect("Select Experiments",
-                                   [f"{exp['id']}: {exp['name']}" for exp in experiments])
+           col1, col2 = st.columns([2, 1])
+           with col1:
+               st.info(f"Configuring Work Order: {wo[0]} - {wo[1]} ({wo[2]})")
+               
+               optimizer = ReagentOptimizer()
+               experiments = optimizer.get_available_experiments()
+               
+               # Store selected experiments in session state
+               selected = st.multiselect(
+                   "Select Experiments",
+                   [f"{exp['id']}: {exp['name']}" for exp in experiments],
+                   key="experiment_selector",
+                   default=st.session_state.selected_experiments
+               )
+               st.session_state.selected_experiments = selected
+               
+               if st.button("Optimize Configuration", key="optimize_button"):
+                   if selected:
+                       exp_ids = [int(exp.split(':')[0]) for exp in selected]
+                       try:
+                           config = optimizer.optimize_tray_configuration(exp_ids)
+                           st.session_state.current_config = config
+                           st.session_state.selected_wo = wo
+                           
+                           conn = create_connection()
+                           c = conn.cursor()
+                           
+                           # Save configuration
+                           c.execute("""INSERT INTO trays 
+                                      (wo_id, customer, requester, date, configuration)
+                                      VALUES (?, ?, ?, ?, ?)""",
+                                   (wo[0], wo[1], wo[2], 
+                                    datetime.now().strftime('%Y-%m-%d'), str(config)))
+                           
+                           # Update inventory status
+                           c.execute("""UPDATE inventory 
+                                      SET status = 'Configured'
+                                      WHERE wo_id = ?""", (wo[0],))
+                           conn.commit()
+                           
+                           next_step, tab = get_next_step(wo[0])
+                           st.success(f"Configuration saved. Next step: {next_step}")
+                           
+                           # Clear relevant session states
+                           del st.session_state.current_wo
+                           st.session_state.selected_experiments = []
+                           
+                       except Exception as e:
+                           st.error(f"Error: {e}")
+                       finally:
+                           conn.close()
+                   else:
+                       st.warning("Please select at least one experiment")
            
-           if st.button("Optimize Configuration") and selected:
-               exp_ids = [int(exp.split(':')[0]) for exp in selected]
-               try:
-                   config = optimizer.optimize_tray_configuration(exp_ids)
-                   st.session_state.config = config
-                   st.session_state.selected_wo = wo
-                   
-                   conn = create_connection()
-                   c = conn.cursor()
-                   # Save configuration
-                   c.execute("""INSERT INTO trays 
-                              (wo_id, customer, requester, date, configuration)
-                              VALUES (?, ?, ?, ?, ?)""",
-                           (wo[0], wo[1], wo[2], 
-                            datetime.now().strftime('%Y-%m-%d'), str(config)))
-                   
-                   # Update inventory status
-                   c.execute("""UPDATE inventory 
-                              SET status = 'Configured'
-                              WHERE wo_id = ?""", (wo[0],))
-                   conn.commit()
-                   
-                   next_step, tab = get_next_step(wo[0])
-                   st.success(f"Configuration saved. Next step: {next_step}")
-                   
-                   # Clear session state after successful configuration
-                   del st.session_state.current_wo
-                   
-               except Exception as e:
-                   st.error(f"Error: {e}")
-               finally:
-                   conn.close()
-                   
-           # Display configuration if available
-           if 'config' in st.session_state:
-               st.plotly_chart(create_tray_visualization(st.session_state.config))
+           with col2:
+               if st.session_state.current_config:
+                   st.plotly_chart(create_tray_visualization(st.session_state.current_config))
    
    # Work order selection for new configurations
    else:
@@ -679,11 +703,11 @@ if 'selected_experiments' not in st.session_state:
        st.info("Select a work order from the Work Orders tab to begin configuration")
        conn.close()
 
-   # Search and display existing configurations section remains the same
+   # Search and display existing configurations
    st.subheader("Search Existing Configurations")
    search_cols = st.columns([2, 2, 1])
-   search_wo = search_cols[0].text_input("Work Order ID")
-   search_customer = search_cols[1].text_input("Customer Name")
+   search_wo = search_cols[0].text_input("Work Order ID", key="config_search_wo")
+   search_customer = search_cols[1].text_input("Customer Name", key="config_search_customer")
    
    if search_wo or search_customer:
        conn = create_connection()
