@@ -211,7 +211,7 @@ def display_results(config):
 def create_tray_visualization(config):
     # (The create_tray_visualization function remains unchanged)
     # ... (Keep the existing implementation)
-
+    
 def get_reagent_color(reagent_code):
     # (The get_reagent_color function remains unchanged)
     # ... (Keep the existing implementation)
