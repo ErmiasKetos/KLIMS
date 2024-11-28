@@ -11,7 +11,6 @@ import xlsxwriter
 st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
    # Custom CSS
 st.markdown("""
-st.markdown("""
 <style>
     .stApp {
         background-color: #f0f2f6; /* Light background color for the app */
