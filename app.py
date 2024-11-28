@@ -868,6 +868,7 @@ def mark_production_complete(tray_id):
     finally:
         conn.close()
 
+
 def render_status_bar(wo_id):
     """Renders a dynamic, color-coded status bar for the current work order."""
     # Define color mapping for statuses
@@ -877,6 +878,7 @@ def render_status_bar(wo_id):
         "Packing": "lightgreen",
         "Shipped": "green",
         "WO Rejected": "red",
+        "Open": "blue"  # Add 'Open' as a default example status
     }
 
     conn = create_connection()
@@ -892,8 +894,11 @@ def render_status_bar(wo_id):
     finally:
         conn.close()
 
-    # Determine the background color
-    color = status_colors.get(status, "gray")
+    # Debugging: Show the fetched status
+    st.write(f"Fetched Status: {status}")  # Debug log to verify the status value
+
+    # Determine the background color for the status
+    color = status_colors.get(status, "gray")  # Default to gray if status is unknown
 
     # Render the status bar
     st.markdown(
