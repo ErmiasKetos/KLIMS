@@ -271,14 +271,28 @@ def create_tray_visualization(config):
     return fig
 
 def display_results(config, selected_experiments):
-    col1, col2 = st.columns([3, 2])
-
-    with col1:
+    st.markdown("### Tray Configuration and Results")
+    
+    # Use a container for better layout
+    with st.container():
+        # Chart Section
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
+        
+        # Adjust chart size
+        fig.update_layout(
+            height=800,  # Increased height
+            width=1200,  # Increased width
+            title=dict(
+                text="Tray Configuration",
+                x=0.5,
+                font=dict(size=20)
+            ),
+            margin=dict(l=40, r=40, t=40, b=40)
+        )
         st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
+        
+        # Results Summary Table
         st.subheader("Results Summary")
         tray_life = min(result["total_tests"] for result in config["results"].values())
         st.metric("Tray Life (Tests)", tray_life)
@@ -290,24 +304,33 @@ def display_results(config, selected_experiments):
             }
             for exp_num, result in config["results"].items()
         ])
+        
+        # Full-width results table
         st.dataframe(results_df, use_container_width=True)
 
-    st.subheader("Detailed Results")
-    for exp_num, result in config["results"].items():
-        with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
-            for i, set_info in enumerate(result["sets"]):
-                st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
-                set_df = pd.DataFrame([
-                    {
-                        "Reagent": placement["reagent_code"],
-                        "Location": f"LOC-{placement['location'] + 1}",
-                        "Tests Possible": placement["tests"]
-                    }
-                    for placement in set_info["placements"]
-                ])
-                st.dataframe(set_df, use_container_width=True)
-                st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
-                st.markdown("---")
+        # Spacing between sections
+        st.markdown("---")
+        
+        # Detailed Results
+        st.subheader("Detailed Results")
+        for exp_num, result in config["results"].items():
+            with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
+                for i, set_info in enumerate(result["sets"]):
+                    st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
+                    
+                    set_df = pd.DataFrame([
+                        {
+                            "Reagent": placement["reagent_code"],
+                            "Location": f"LOC-{placement['location'] + 1}",
+                            "Tests Possible": placement["tests"]
+                        }
+                        for placement in set_info["placements"]
+                    ])
+                    
+                    # Full-width detailed results table
+                    st.dataframe(set_df, use_container_width=True)
+                    st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
+                    st.markdown("---")
 
 def manage_work_orders():
     st.header("Work Orders")
