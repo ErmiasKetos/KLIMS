@@ -18,6 +18,13 @@ st.markdown("""
     .main {
         padding: 2rem;
     }
+    .stDataFrame, .stPlotlyChart {
+        margin-top: 20px;
+        margin-bottom: 20px;
+     }
+     .stMetric {
+         margin-bottom: 10px;
+     }
     .stButton>button {
         background-color: #4CAF50;
         color: white;
