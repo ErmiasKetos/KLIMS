@@ -242,6 +242,7 @@ def get_reagent_color(reagent_code):
             return color
     return 'lightgray'
 
+
 def create_tray_visualization(config):
     locations = config["tray_locations"]
     fig = go.Figure()
@@ -249,45 +250,32 @@ def create_tray_visualization(config):
     for i, loc in enumerate(locations):
         row = i // 4
         col = i % 4
-        color = get_reagent_color(loc['reagent_code']) if loc else 'lightgray'
-        opacity = 0.8 if loc else 0.2
+        color = get_reagent_color(loc["reagent_code"]) if loc else "lightgray"
 
-        fig.add_trace(go.Scatter(
-            x=[col, col+1, col+1, col, col],
-            y=[row, row, row+1, row+1, row],
-            fill="toself",
-            fillcolor=color,
-            opacity=opacity,
-            line=dict(color="black", width=1),
-            mode="lines",
-            name=f"LOC-{i+1}",
-            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
-            hoverinfo="text"
-        ))
-
-        fig.add_annotation(
-            x=(col + col + 1) / 2,
-            y=(row + row + 1) / 2,
-            text=f"<b>LOC-{i+1}</b><br>{'<b>' + loc['reagent_code'] if loc else 'Empty</b>'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
-            showarrow=False,
-            font=dict(color="black", size=14),
-            align="center",
-            xanchor="center",
-            yanchor="middle"
+        fig.add_trace(
+            go.Scatter(
+                x=[col, col + 1, col + 1, col, col],
+                y=[row, row, row + 1, row + 1, row],
+                fill="toself",
+                fillcolor=color,
+                opacity=0.8 if loc else 0.2,
+                line=dict(color="black", width=1),
+                mode="lines",
+                name=f"LOC-{i+1}",
+                text=f"LOC-{i+1}<br>{loc['reagent_code']}<br>Tests: {loc['tests_possible']}<br>Exp: #{loc['experiment']}",
+                hoverinfo="text",
+            )
         )
-
     fig.update_layout(
-        title="Tray Configuration",
-        showlegend=False,
-        autosize=True,
         height=600,
-        width=1000,
+        width=800,
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=20, r=20, t=40, b=20)
+        margin=dict(l=20, r=20, t=40, b=20),
+        title="Tray Configuration",
     )
     return fig
+
 
 def display_results(config, selected_experiments):
     # Left-align the tray configuration section with visual separation
@@ -742,6 +730,10 @@ def display_recent_activity(c):
     df = pd.DataFrame(c.fetchall(), 
                      columns=['Work Order', 'Customer', 'Requester', 'Status', 'Date'])
     st.dataframe(df, use_container_width=True)
+
+def manage_production():
+    st.header("Manage Production")
+    st.info("This section is under development. Features will be added soon.")
 
 def main():
     st.title("🧪 Reagent LIMS")
