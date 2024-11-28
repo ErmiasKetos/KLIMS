@@ -82,9 +82,6 @@ def main():
     with tab8:
         analytics()
 
-if __name__ == "__main__":
-    main()
-
 
 def dashboard():
     st.header("Dashboard")
