@@ -557,57 +557,142 @@ def get_next_step(wo_id):
 setup_database()
 
 def manage_work_orders():
-    st.header("Work Orders")
-    
-    with st.form("new_work_order"):
-        cols = st.columns([2, 2, 1])
-        customer = cols[0].text_input("Customer Name")
-        requester = cols[0].text_input("Job Requester")
-        date = cols[1].date_input("Date")
-        
-        submitted = cols[2].form_submit_button("Create Work Order")
-        if submitted and customer and requester:
-            wo_id = generate_wo_number()
-            st.session_state.current_wo = wo_id
-            conn = create_connection()
-            c = conn.cursor()
-            
-            c.execute("""INSERT INTO work_orders 
-                        (id, customer, requester, date, status) 
-                        VALUES (?, ?, ?, ?, ?)""",
-                     (wo_id, customer, requester, date.strftime('%Y-%m-%d'), 'Open'))
-            conn.commit()
-            
-            next_step, tab = get_next_step(wo_id)
-            st.success(f"Work Order {wo_id} created. Next step: {next_step}")
-            
-            # Update inventory tracking
-            c.execute("""INSERT INTO inventory 
-                        (wo_id, date, status) 
-                        VALUES (?, ?, ?)""",
-                     (wo_id, date.strftime('%Y-%m-%d'), 'Created'))
-            conn.commit()
-            conn.close()
+   st.header("Work Orders")
+   
+   with st.form("new_work_order"):
+       cols = st.columns([2, 2, 1])
+       customer = cols[0].text_input("Customer Name")
+       requester = cols[0].text_input("Job Requester")
+       date = cols[1].date_input("Date")
+       
+       submitted = cols[2].form_submit_button("Create Work Order")
+       if submitted and customer and requester:
+           wo_id = generate_wo_number()
+           conn = create_connection()
+           c = conn.cursor()
+           
+           c.execute("""INSERT INTO work_orders 
+                       (id, customer, requester, date, status) 
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (wo_id, customer, requester, date.strftime('%Y-%m-%d'), 'Open'))
+           conn.commit()
+           
+           # Initialize configuration state
+           st.session_state.pending_configuration = True
+           st.session_state.current_wo = wo_id
+           st.session_state.current_tab = 2
+           
+           next_step, tab = get_next_step(wo_id)
+           st.success(f"Work Order {wo_id} created. Next step: {next_step}")
+           
+           # Update inventory tracking
+           c.execute("""INSERT INTO inventory 
+                       (wo_id, date, status) 
+                       VALUES (?, ?, ?)""",
+                    (wo_id, date.strftime('%Y-%m-%d'), 'Created'))
+           conn.commit()
+           conn.close()
 
-    # Display work orders
-    conn = create_connection()
-    c = conn.cursor()
-    c.execute("""SELECT wo.id, wo.customer, wo.requester, wo.date, wo.status,
-                 COALESCE(t.id, 'Pending') as tray_id,
-                 COALESCE(p.status, 'Not Started') as production_status,
-                 COALESCE(s.tracking_number, 'Not Shipped') as shipping_status
-                 FROM work_orders wo
-                 LEFT JOIN trays t ON wo.id = t.wo_id
-                 LEFT JOIN production p ON wo.id = p.wo_id
-                 LEFT JOIN shipping s ON wo.id = s.wo_id
-                 ORDER BY wo.date DESC""")
-    
-    df = pd.DataFrame(c.fetchall(), 
-                     columns=['WO ID', 'Customer', 'Requester', 'Date', 'Status', 
-                             'Tray ID', 'Production', 'Shipping'])
-    st.dataframe(df, use_container_width=True)
-    conn.close()
+def configure_tray():
+   # Initialize session states
+   if 'pending_configuration' not in st.session_state:
+       st.session_state.pending_configuration = False
+   if 'selected_experiments' not in st.session_state:
+       st.session_state.selected_experiments = []
+   if 'config_initialized' not in st.session_state:
+       st.session_state.config_initialized = False
+   if 'current_config' not in st.session_state:
+       st.session_state.current_config = None
+   if 'experiment_selection' not in st.session_state:
+       st.session_state.experiment_selection = []
 
+   st.header("Tray Configuration")
+
+   if st.session_state.pending_configuration or 'current_wo' in st.session_state:
+       wo_id = st.session_state.current_wo
+       conn = create_connection()
+       c = conn.cursor()
+       c.execute("SELECT id, customer, requester FROM work_orders WHERE id=?", (wo_id,))
+       wo = c.fetchone()
+       conn.close()
+
+       if wo:
+           col1, col2 = st.columns([2, 1])
+           with col1:
+               st.info(f"Configuring Work Order: {wo[0]} - {wo[1]} ({wo[2]})")
+               
+               def on_experiment_change():
+                   st.session_state.config_initialized = True
+
+               optimizer = ReagentOptimizer()
+               experiments = optimizer.get_available_experiments()
+               
+               selected = st.multiselect(
+                   "Select Experiments",
+                   [f"{exp['id']}: {exp['name']}" for exp in experiments],
+                   key=f"experiment_selector_{wo_id}",
+                   default=st.session_state.experiment_selection,
+                   on_change=on_experiment_change
+               )
+               st.session_state.experiment_selection = selected
+
+               if st.button("Optimize Configuration", key=f"optimize_button_{wo_id}"):
+                   if selected:
+                       exp_ids = [int(exp.split(':')[0]) for exp in selected]
+                       try:
+                           config = optimizer.optimize_tray_configuration(exp_ids)
+                           st.session_state.current_config = config
+                           
+                           conn = create_connection()
+                           c = conn.cursor()
+                           
+                           c.execute("""INSERT INTO trays 
+                                      (wo_id, customer, requester, date, configuration)
+                                      VALUES (?, ?, ?, ?, ?)""",
+                                   (wo[0], wo[1], wo[2], 
+                                    datetime.now().strftime('%Y-%m-%d'), str(config)))
+                           
+                           c.execute("""UPDATE inventory 
+                                      SET status = 'Configured'
+                                      WHERE wo_id = ?""", (wo[0],))
+                           conn.commit()
+                           conn.close()
+                           
+                           next_step, tab = get_next_step(wo[0])
+                           st.success(f"Configuration saved. Next step: {next_step}")
+                           
+                           # Reset states after successful configuration
+                           st.session_state.pending_configuration = False
+                           st.session_state.config_initialized = False
+                           st.session_state.experiment_selection = []
+                           if 'current_wo' in st.session_state:
+                               del st.session_state.current_wo
+                           
+                       except Exception as e:
+                           st.error(f"Error: {e}")
+                   else:
+                       st.warning("Please select at least one experiment")
+
+           with col2:
+               if st.session_state.current_config:
+                   st.plotly_chart(create_tray_visualization(st.session_state.current_config))
+
+   else:
+       conn = create_connection()
+       c = conn.cursor()
+       c.execute("""SELECT wo.id, wo.customer, wo.requester 
+                    FROM work_orders wo
+                    LEFT JOIN trays t ON wo.id = t.wo_id
+                    WHERE wo.status = 'Open' AND t.id IS NULL""")
+       pending_wo = c.fetchall()
+       
+       if not pending_wo:
+           st.info("No work orders pending configuration")
+       else:
+           st.info("Select a work order from the Work Orders tab to begin configuration")
+       conn.close()
+
+   # Search configurations section remains the same...
 def configure_tray():
    st.header("Tray Configuration")
    
