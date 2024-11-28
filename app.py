@@ -7,6 +7,10 @@ from datetime import datetime
 from io import BytesIO
 import xlsxwriter
 
+   
+
+# Page config
+st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
    # Custom CSS
 st.markdown("""
 <style>
@@ -35,9 +39,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
    
-
-# Page config
-st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
 
 def search_and_reports():
    st.header("Search & Reports")
