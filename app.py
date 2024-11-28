@@ -868,55 +868,106 @@ def mark_production_complete(tray_id):
     finally:
         conn.close()
 
+def render_status_bar(wo_id):
+    """Renders a dynamic, color-coded status bar for the current work order."""
+    # Define color mapping for statuses
+    status_colors = {
+        "Accepted": "blue",
+        "Inprocess": "turquoise",
+        "Packing": "lightgreen",
+        "Shipped": "green",
+        "WO Rejected": "red",
+    }
+
+    conn = create_connection()
+    c = conn.cursor()
+    try:
+        # Fetch the current status of the work order
+        c.execute("SELECT status FROM work_orders WHERE id = ?", (wo_id,))
+        result = c.fetchone()
+        status = result[0] if result else "Unknown"
+    except Exception as e:
+        st.error(f"Error fetching work order status: {e}")
+        status = "Unknown"
+    finally:
+        conn.close()
+
+    # Determine the background color
+    color = status_colors.get(status, "gray")
+
+    # Render the status bar
+    st.markdown(
+        f"""
+        <div style="
+            background-color: {color};
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+        ">
+            Current Work Order Status: {status}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def main():
     st.title("🧪 Reagent LIMS")
-    
-    # Apply custom CSS
-    st.markdown("""
-        <style>
-        .stTabs [data-baseweb="tab-list"] { gap: 2px; }
-        .stTabs [data-baseweb="tab"] {
-            height: 50px;
-            background-color: #F0F2F6;
-            border-radius: 4px;
-            padding: 10px;
-        }
-        .stTabs [aria-selected="true"] {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .stButton>button {
-            background-color: #4CAF50;
-            color: white;
-            font-weight: bold;
-        }
-        .stDataFrame, .stPlotlyChart {
-            background-color: white;
-            padding: 1rem;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # Handle tab navigation
-    if 'current_tab' not in st.session_state:
-        st.session_state.current_tab = 0
-    
+
+    # Initialize session state for the current work order if not already set
+    if "current_wo" not in st.session_state:
+        st.session_state.current_wo = None  # Default to no work order selected
+
+    # Render the status bar if a work order is selected
+    if st.session_state.current_wo:
+        render_status_bar(st.session_state.current_wo)
+    else:
+        st.markdown(
+            """
+            <div style="
+                background-color: gray;
+                color: white;
+                padding: 10px;
+                border-radius: 5px;
+                text-align: center;
+                font-weight: bold;
+                font-size: 18px;
+            ">
+                No Work Order Selected
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # Define tabs for navigation
     tabs = st.tabs([
-        "Dashboard", "Work Orders", "Tray Configuration",
-        "Inventory", "Production", "Shipping", "Search & Reports"
+        "Dashboard",
+        "Work Orders",
+        "Tray Configuration",
+        "Inventory",
+        "Production",
+        "Shipping",
+        "Search & Reports",
     ])
-    
+
     tab_functions = [
-        show_dashboard, manage_work_orders, configure_tray,
-        manage_inventory, manage_production, manage_shipping,
-        search_and_reports
+        show_dashboard,
+        manage_work_orders,
+        configure_tray,
+        manage_inventory,
+        manage_production,
+        manage_shipping,
+        search_and_reports,
     ]
-    
+
+    # Render the appropriate tab function
     for i, tab_function in enumerate(tab_functions):
         with tabs[i]:
             tab_function()
+
 
 if __name__ == "__main__":
     setup_database()
