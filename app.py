@@ -279,14 +279,30 @@ def create_tray_visualization(config):
 
 
 def display_results(config, selected_experiments):
-    # Create two equal-size columns
-    col1, col2 = st.columns(2)
-
-    # Column 1: Tray Configuration Optimization (Results Summary and Tables)
-    with col1:
-        st.markdown("### Tray Configuration Optimization")
+    # Responsive container for the chart and tables
+    with st.container():
+        # Chart Section
+        st.markdown("### Tray Configuration")
+        fig = create_tray_visualization(config)
         
-        # Results Summary Section
+        # Adjust chart size and make it responsive
+        fig.update_layout(
+            autosize=True,  # Make responsive
+            height=600,  # Adjust height
+            title=dict(
+                text="Tray Configuration",
+                x=0.5,  # Center title
+                font=dict(size=20)
+            ),
+            margin=dict(l=20, r=20, t=40, b=20)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Spacing between chart and tables
+        st.markdown("---")
+        
+        # Results Summary Table
+        st.markdown("### Results Summary")
         tray_life = min(result["total_tests"] for result in config["results"].values())
         st.metric("Tray Life (Tests)", tray_life)
 
@@ -301,7 +317,10 @@ def display_results(config, selected_experiments):
         # Full-width results table
         st.dataframe(results_df, use_container_width=True)
 
-        # Detailed Results Section
+        # Spacing between sections
+        st.markdown("---")
+        
+        # Detailed Results
         st.markdown("### Detailed Results")
         for exp_num, result in config["results"].items():
             with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
@@ -321,24 +340,6 @@ def display_results(config, selected_experiments):
                     st.dataframe(set_df, use_container_width=True)
                     st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
                     st.markdown("---")
-
-    # Column 2: Tray Configuration Chart
-    with col2:
-        st.markdown("### Tray Configuration")
-        fig = create_tray_visualization(config)
-        
-        # Adjust chart size and responsiveness
-        fig.update_layout(
-            autosize=True,  # Make responsive
-            height=600,  # Adjust height
-            title=dict(
-                text="Tray Configuration",
-                x=0.5,  # Center title
-                font=dict(size=20)
-            ),
-            margin=dict(l=20, r=20, t=40, b=20)
-        )
-        st.plotly_chart(fig, use_container_width=True)
 
 def manage_work_orders():
     st.header("Work Orders")
