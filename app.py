@@ -24,6 +24,17 @@ try:
 except ImportError:
     st.warning("Slack SDK not installed. Slack notifications will be disabled.")
     slack_client = None
+    
+def send_slack_notification(message, channel="#reagent-tray-lims"):
+    if not slack_client:
+        st.warning("Slack integration not configured or SDK not installed. Skipping notification.")
+        return False
+    try:
+        response = slack_client.chat_postMessage(channel=channel, text=message)
+        return True
+    except Exception as e:
+        st.error(f"Error sending Slack message: {e}")
+        return False
 
 # Set page config
 st.set_page_config(
