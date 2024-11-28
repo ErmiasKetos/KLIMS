@@ -65,6 +65,8 @@ c.execute('''CREATE TABLE IF NOT EXISTS trays
              (id INTEGER PRIMARY KEY, wo_id INTEGER, customer TEXT, date TEXT, configuration TEXT)''')
 c.execute('''CREATE TABLE IF NOT EXISTS production
              (id INTEGER PRIMARY KEY, tray_id INTEGER, start_date TEXT, end_date TEXT, status TEXT)''')
+c.execute('''CREATE TABLE IF NOT EXISTS shipping
+             (id INTEGER PRIMARY KEY, tray_id INTEGER, tracking_number TEXT, ship_date TEXT)''')
 conn.commit()
 
 # Main function
@@ -293,8 +295,14 @@ def show_production_and_qc():
     st.header("Production & QC")
     
     # Select tray for production
-    c.execute("SELECT id, customer, date FROM trays WHERE id NOT IN (SELECT tray_id FROM production)")
+    c.execute("""
+        SELECT t.id, t.customer, t.date 
+        FROM trays t
+        LEFT JOIN production p ON t.id = p.tray_id
+        WHERE p.tray_id IS NULL
+    """)
     trays_for_production = c.fetchall()
+    
     if not trays_for_production:
         st.warning("No trays available for production. Please configure a tray first.")
         return
@@ -321,7 +329,12 @@ def show_production_and_qc():
 
     if st.button("Complete Production & QC"):
         if len(completed_steps) == len(steps) and len(completed_qc) == len(qc_items):
-            # In a real application, you would save this information to the database
+            # Save production information to the database
+            c.execute("""
+                INSERT INTO production (tray_id, start_date, end_date, status)
+                VALUES (?, ?, ?, ?)
+            """, (selected_tray[0], datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), 'Completed'))
+            conn.commit()
             st.success("Production and QC completed successfully!")
         else:
             st.warning("Please complete all production steps and QC checks before proceeding.")
@@ -330,8 +343,15 @@ def show_shipping_and_logging():
     st.header("Shipping & Logging")
     
     # Select tray for shipping
-    c.execute("SELECT id, customer, date FROM trays WHERE id NOT IN (SELECT tray_id FROM shipping)")
+    c.execute("""
+        SELECT t.id, t.customer, t.date 
+        FROM trays t
+        INNER JOIN production p ON t.id = p.tray_id
+        LEFT JOIN shipping s ON t.id = s.tray_id
+        WHERE p.status = 'Completed' AND s.tray_id IS NULL
+    """)
     trays_for_shipping = c.fetchall()
+    
     if not trays_for_shipping:
         st.warning("No trays available for shipping. Please complete production and QC first.")
         return
@@ -346,11 +366,29 @@ def show_shipping_and_logging():
         ship_date = st.date_input("Ship Date")
         submitted = st.form_submit_button("Log Shipment")
         if submitted:
-            # In a real application, you would save this to the database
+            # Save shipping information to the database
+            c.execute("""
+                INSERT INTO shipping (tray_id, tracking_number, ship_date)
+                VALUES (?, ?, ?)
+            """, (selected_tray[0], tracking_number, ship_date.strftime('%Y-%m-%d')))
+            conn.commit()
             st.success(f"Shipment logged for {selected_tray[1]} with tracking number {tracking_number}")
 
-    # In a real application, you would fetch this data from the database
-    st.info("Shipment log would be displayed here. Implement database integration for real data.")
+    # Display shipping log
+    c.execute("""
+        SELECT t.customer, s.tracking_number, s.ship_date
+        FROM shipping s
+        INNER JOIN trays t ON s.tray_id = t.id
+        ORDER BY s.ship_date DESC
+    """)
+    shipping_log = c.fetchall()
+    
+    if shipping_log:
+        st.subheader("Shipping Log")
+        df = pd.DataFrame(shipping_log, columns=['Customer', 'Tracking Number', 'Ship Date'])
+        st.dataframe(df)
+    else:
+        st.info("No shipments logged yet.")
 
 if __name__ == "__main__":
     main()
