@@ -605,6 +605,8 @@ def manage_work_orders():
     conn.close()
 
 def configure_tray():
+    if 'selected_experiments' not in st.session_state:
+        st.session_state.selected_experiments = []
    st.header("Tray Configuration")
    
    # Check session state first
