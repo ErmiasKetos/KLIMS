@@ -209,12 +209,67 @@ def display_results(config):
     st.dataframe(results_df)
 
 def create_tray_visualization(config):
-    # (The create_tray_visualization function remains unchanged)
-    # ... (Keep the existing implementation)
-    
+    locations = config["tray_locations"]
+    fig = go.Figure()
+
+    for i, loc in enumerate(locations):
+        row = i // 4
+        col = i % 4
+        color = get_reagent_color(loc['reagent_code']) if loc else 'lightgray'
+        opacity = 0.8 if loc else 0.2
+
+        fig.add_trace(go.Scatter(
+            x=[col, col+1, col+1, col, col],
+            y=[row, row, row+1, row+1, row],
+            fill="toself",
+            fillcolor=color,
+            opacity=opacity,
+            line=dict(color="black", width=1),
+            mode="lines",
+            name=f"LOC-{i+1}",
+            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+            hoverinfo="text"
+        ))
+
+        fig.add_annotation(
+            x=(col + col + 1) / 2,
+            y=(row + row + 1) / 2,
+            text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+            showarrow=False,
+            font=dict(color="black", size=8),
+            align="center",
+            xanchor="center",
+            yanchor="middle"
+        )
+
+    fig.update_layout(
+        title="Tray Configuration",
+        showlegend=False,
+        height=600,
+        width=800,
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+
+    return fig
+
 def get_reagent_color(reagent_code):
-    # (The get_reagent_color function remains unchanged)
-    # ... (Keep the existing implementation)
+    color_map = {
+        'gray': ['KR1E', 'KR1S', 'KR2S', 'KR3E', 'KR3S', 'KR4E', 'KR4S', 'KR5E', 'KR5S', 'KR6E1', 'KR6E2', 'KR6E3', 'KR13E1', 'KR13S', 'KR14E', 'KR14S', 'KR15E', 'KR15S'],
+        'violet': ['KR7E1', 'KR7E2', 'KR8E1', 'KR8E2', 'KR19E1', 'KR19E2', 'KR19E3', 'KR20E', 'KR36E1', 'KR36E2', 'KR40E1', 'KR40E2'],
+        'green': ['KR9E1', 'KR9E2', 'KR17E1', 'KR17E2', 'KR17E3', 'KR28E1', 'KR28E2', 'KR28E3'],
+        'orange': ['KR10E1', 'KR10E2', 'KR10E3', 'KR12E1', 'KR12E2', 'KR12E3', 'KR18E1', 'KR18E2', 'KR22E1', 'KR27E1', 'KR27E2', 'KR42E1', 'KR42E2'],
+        'white': ['KR11E', 'KR21E1'],
+        'blue': ['KR16E1', 'KR16E2', 'KR16E3', 'KR16E4', 'KR30E1', 'KR30E2', 'KR30E3', 'KR31E1', 'KR31E2', 'KR34E1', 'KR34E2'],
+        'red': ['KR29E1', 'KR29E2', 'KR29E3'],
+        'yellow': ['KR35E1', 'KR35E2']
+    }
+    for color, reagents in color_map.items():
+        if any(reagent_code.startswith(r) for r in reagents):
+            return color
+    return 'lightgray'  # Default color if not found
 
 def show_inventory():
     st.header("Inventory Management")
