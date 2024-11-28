@@ -317,7 +317,7 @@ def display_results(config, selected_experiments):
     ])
     
     # Full-width results table
-    st.dataframe(results_df, use_container_width=True)
+    st.dataframe(results_df, use_container_width=False)
 
     # Spacing between sections
     st.markdown("---")
@@ -339,7 +339,7 @@ def display_results(config, selected_experiments):
                 ])
                 
                 # Full-width detailed results table
-                st.dataframe(set_df, use_container_width=True)
+                st.dataframe(set_df, use_container_width=False)
                 st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
                 st.markdown("---")
 
