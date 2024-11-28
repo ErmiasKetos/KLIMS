@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS
+# Custom CSS (unchanged)
 st.markdown("""
 <style>
     .stApp {
@@ -53,6 +53,7 @@ c.execute('''CREATE TABLE IF NOT EXISTS tray_configurations
 conn.commit()
 
 def get_reagent_color(reagent_code):
+    # (Unchanged function)
     color_map = {
         'gray': ['KR1E', 'KR1S', 'KR2S', 'KR3E', 'KR3S', 'KR4E', 'KR4S', 'KR5E', 'KR5S', 'KR6E1', 'KR6E2', 'KR6E3', 'KR13E1', 'KR13S', 'KR14E', 'KR14S', 'KR15E', 'KR15S'],
         'violet': ['KR7E1', 'KR7E2', 'KR8E1', 'KR8E2', 'KR19E1', 'KR19E2', 'KR19E3', 'KR20E', 'KR36E1', 'KR36E2', 'KR40E1', 'KR40E2'],
@@ -69,6 +70,7 @@ def get_reagent_color(reagent_code):
     return 'lightgray'  # Default color if not found
 
 def create_tray_visualization(config):
+    # (Unchanged function)
     locations = config["tray_locations"]
     fig = go.Figure()
 
@@ -94,7 +96,7 @@ def create_tray_visualization(config):
         fig.add_annotation(
             x=(col + col + 1) / 2,
             y=(row + row + 1) / 2,
-            text=f"<b>LOC-{i+1}</b><br>{'<b>' + loc['reagent_code'] if loc else 'Empty</b>'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+           text=f"<b>LOC-{i+1}</b><br>{'<b>' + loc['reagent_code'] if loc else 'Empty</b>'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
             showarrow=False,
             font=dict(color="black", size=14),
             align="center",
@@ -116,6 +118,7 @@ def create_tray_visualization(config):
     return fig
 
 def display_results(config, selected_experiments):
+    # (Unchanged function)
     col1, col2 = st.columns([3, 2])
 
     with col1:
@@ -155,6 +158,7 @@ def display_results(config, selected_experiments):
                 st.markdown("---")
 
 def reset_app():
+    """Clears all session state variables to reset the app."""
     for key in list(st.session_state.keys()):
         if key.startswith('exp_'):
             st.session_state[key] = False
