@@ -564,6 +564,7 @@ def manage_work_orders():
         submitted = cols[2].form_submit_button("Create Work Order")
         if submitted and customer and requester:
             wo_id = generate_wo_number()
+            st.session_state.current_wo = wo_id
             conn = create_connection()
             c = conn.cursor()
             
@@ -606,36 +607,28 @@ def manage_work_orders():
 def configure_tray():
     st.header("Tray Configuration")
     
-    # Work order selection
-    conn = create_connection()
-    c = conn.cursor()
-    c.execute("""SELECT wo.id, wo.customer, wo.requester 
-                 FROM work_orders wo
-                 LEFT JOIN trays t ON wo.id = t.wo_id
-                 WHERE wo.status = 'Open' AND t.id IS NULL""")
-    pending_wo = c.fetchall()
-    
-    if not pending_wo:
-        st.info("No work orders pending configuration")
+    # Check session state first
+    if 'current_wo' in st.session_state:
+        wo_id = st.session_state.current_wo
+        conn = create_connection()
+        c = conn.cursor()
+        c.execute("SELECT id, customer, requester FROM work_orders WHERE id=?", (wo_id,))
+        wo = c.fetchone()
         conn.close()
-        return
         
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        wo = st.selectbox("Select Work Order", pending_wo,
-                         format_func=lambda x: f"{x[0]} - {x[1]}")
+        if wo:
+            optimizer = ReagentOptimizer()
+            experiments = optimizer.get_available_experiments()
+            selected = st.multiselect("Select Experiments",
+                                    [f"{exp['id']}: {exp['name']}" for exp in experiments])
         
-        optimizer = ReagentOptimizer()
-        experiments = optimizer.get_available_experiments()
-        selected = st.multiselect("Select Experiments",
-                                 [f"{exp['id']}: {exp['name']}" for exp in experiments])
-        
-        if st.button("Optimize Configuration") and selected:
-            exp_ids = [int(exp.split(':')[0]) for exp in selected]
-            try:
-                config = optimizer.optimize_tray_configuration(exp_ids)
-                st.session_state.config = config
-                st.session_state.current_wo = wo
+            if st.button("Optimize Configuration") and selected:
+                exp_ids = [int(exp.split(':')[0]) for exp in selected]
+                try:
+                    config = optimizer.optimize_tray_configuration(exp_ids)
+                    st.session_state.config = config
+                    st.session_state.current_wo = wo
+                    del st.session_state.current_wo 
                 
                 # Save configuration
                 c.execute("""INSERT INTO trays 
