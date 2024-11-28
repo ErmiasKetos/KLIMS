@@ -322,8 +322,6 @@ def get_reagent_color(reagent_code):
             return color
     return 'lightgray'  # Default color if not found
 
-
-
 def show_inventory():
     st.header("Inventory Management")
     
@@ -334,107 +332,169 @@ def show_inventory():
         quantity = st.number_input("Quantity", min_value=0)
         submitted = st.form_submit_button("Add Item")
         if submitted:
-            # In a real application, you would save this to the database
+            # Save new inventory item to the database
+            c.execute("""
+                INSERT INTO inventory (reagent, batch_number, quantity, date_added)
+                VALUES (?, ?, ?, ?)
+            """, (reagent, batch_number, quantity, datetime.now().strftime('%Y-%m-%d')))
+            conn.commit()
             st.success(f"Added {quantity} of {reagent} (Batch: {batch_number}) to inventory")
 
-    # In a real application, you would fetch this data from the database
-    st.info("Inventory data would be displayed here. Implement database integration for real data.")
+    # Display current inventory
+    st.subheader("Current Inventory")
+    c.execute("SELECT * FROM inventory ORDER BY date_added DESC")
+    inventory_data = c.fetchall()
+    
+    if inventory_data:
+        df = pd.DataFrame(inventory_data, columns=['ID', 'Reagent', 'Batch Number', 'Quantity', 'Date Added'])
+        st.dataframe(df)
+    else:
+        st.info("No inventory items found. Add items using the form above.")
+
+    # Option to update inventory quantities
+    st.subheader("Update Inventory")
+    if inventory_data:
+        update_item = st.selectbox("Select item to update", options=[f"{item[1]} (Batch: {item[2]})" for item in inventory_data])
+        if update_item:
+            item_id = inventory_data[[f"{item[1]} (Batch: {item[2]})" for item in inventory_data].index(update_item)][0]
+            new_quantity = st.number_input("New Quantity", min_value=0, value=inventory_data[item_id][3])
+            if st.button("Update Quantity"):
+                c.execute("UPDATE inventory SET quantity = ? WHERE id = ?", (new_quantity, item_id))
+                conn.commit()
+                st.success(f"Updated quantity for {update_item} to {new_quantity}")
 
 def show_production_and_qc():
     st.header("Production & QC")
-    
-    # Select tray for production
+
+    # Fetch trays that are ready for production
     c.execute("""
-        SELECT t.id, t.customer, t.date 
+        SELECT t.id, t.customer, t.date, w.id as wo_id
         FROM trays t
+        JOIN work_orders w ON t.wo_id = w.id
         LEFT JOIN production p ON t.id = p.tray_id
-        WHERE p.tray_id IS NULL
+        WHERE p.id IS NULL
     """)
-    trays_for_production = c.fetchall()
-    
-    if not trays_for_production:
-        st.warning("No trays available for production. Please configure a tray first.")
+    ready_trays = c.fetchall()
+
+    if not ready_trays:
+        st.info("No trays ready for production.")
         return
 
+    # Select a tray for production
     selected_tray = st.selectbox("Select Tray for Production", 
-                                 options=trays_for_production,
-                                 format_func=lambda x: f"{x[1]} - {x[2]}")
+                                 options=ready_trays,
+                                 format_func=lambda x: f"Tray {x[0]} - {x[1]} ({x[2]})")
 
-    # Production steps
-    st.subheader("Production Steps")
-    steps = ["Pour reagents", "Seal tray", "Apply label", "Package"]
-    completed_steps = []
-    for step in steps:
-        if st.checkbox(step):
-            completed_steps.append(step)
-
-    # QC checklist
-    st.subheader("QC Checklist")
-    qc_items = ["Volume check", "Seal integrity", "Label accuracy", "Packaging quality"]
-    completed_qc = []
-    for item in qc_items:
-        if st.checkbox(item):
-            completed_qc.append(item)
-
-    if st.button("Complete Production & QC"):
-        if len(completed_steps) == len(steps) and len(completed_qc) == len(qc_items):
-            # Save production information to the database
-            c.execute("""
-                INSERT INTO production (tray_id, start_date, end_date, status)
-                VALUES (?, ?, ?, ?)
-            """, (selected_tray[0], datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), 'Completed'))
-            conn.commit()
-            st.success("Production and QC completed successfully!")
-        else:
-            st.warning("Please complete all production steps and QC checks before proceeding.")
+    if selected_tray:
+        st.subheader(f"Production Steps for Tray {selected_tray[0]}")
+        
+        # Production steps
+        steps = [
+            "Pour reagents into tray",
+            "Seal tray chambers",
+            "Apply tray label",
+            "Package tray in box"
+        ]
+        
+        # QC checklist
+        qc_items = [
+            "Verify reagent volumes",
+            "Check tray seal integrity",
+            "Confirm label accuracy",
+            "Inspect packaging"
+        ]
+        
+        # Create columns for steps and QC
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write("Production Steps")
+            step_states = []
+            for step in steps:
+                step_state = st.checkbox(step)
+                step_states.append(step_state)
+        
+        with col2:
+            st.write("QC Checklist")
+            qc_states = []
+            for item in qc_items:
+                qc_state = st.checkbox(item)
+                qc_states.append(qc_state)
+        
+        if st.button("Complete Production & QC"):
+            if all(step_states) and all(qc_states):
+                # Mark production as complete in the database
+                c.execute("""
+                    INSERT INTO production (tray_id, start_date, end_date, status)
+                    VALUES (?, ?, ?, ?)
+                """, (selected_tray[0], datetime.now().strftime('%Y-%m-%d'), datetime.now().strftime('%Y-%m-%d'), 'Completed'))
+                
+                # Update work order status
+                c.execute("UPDATE work_orders SET status = 'In Production' WHERE id = ?", (selected_tray[3],))
+                
+                conn.commit()
+                st.success(f"Production and QC completed for Tray {selected_tray[0]}")
+            else:
+                st.error("Please complete all production steps and QC checks before marking as complete.")
 
 def show_shipping_and_logging():
     st.header("Shipping & Logging")
-    
-    # Select tray for shipping
+
+    # Fetch trays that are ready for shipping (production completed)
     c.execute("""
-        SELECT t.id, t.customer, t.date 
+        SELECT t.id, t.customer, t.date, w.id as wo_id
         FROM trays t
-        INNER JOIN production p ON t.id = p.tray_id
+        JOIN work_orders w ON t.wo_id = w.id
+        JOIN production p ON t.id = p.tray_id
         LEFT JOIN shipping s ON t.id = s.tray_id
-        WHERE p.status = 'Completed' AND s.tray_id IS NULL
+        WHERE p.status = 'Completed' AND s.id IS NULL
     """)
-    trays_for_shipping = c.fetchall()
-    
-    if not trays_for_shipping:
-        st.warning("No trays available for shipping. Please complete production and QC first.")
+    ready_to_ship = c.fetchall()
+
+    if not ready_to_ship:
+        st.info("No trays ready for shipping.")
         return
 
+    # Select a tray for shipping
     selected_tray = st.selectbox("Select Tray for Shipping", 
-                                 options=trays_for_shipping,
-                                 format_func=lambda x: f"{x[1]} - {x[2]}")
+                                 options=ready_to_ship,
+                                 format_func=lambda x: f"Tray {x[0]} - {x[1]} ({x[2]})")
 
-    # Form for logging new shipments
-    with st.form("new_shipment"):
-        tracking_number = st.text_input("Tracking Number")
-        ship_date = st.date_input("Ship Date")
-        submitted = st.form_submit_button("Log Shipment")
-        if submitted:
-            # Save shipping information to the database
-            c.execute("""
-                INSERT INTO shipping (tray_id, tracking_number, ship_date)
-                VALUES (?, ?, ?)
-            """, (selected_tray[0], tracking_number, ship_date.strftime('%Y-%m-%d')))
-            conn.commit()
-            st.success(f"Shipment logged for {selected_tray[1]} with tracking number {tracking_number}")
+    if selected_tray:
+        st.subheader(f"Shipping for Tray {selected_tray[0]}")
+        
+        with st.form("shipping_form"):
+            tracking_number = st.text_input("Tracking Number")
+            ship_date = st.date_input("Ship Date")
+            
+            if st.form_submit_button("Log Shipment"):
+                if tracking_number and ship_date:
+                    # Log shipment in the database
+                    c.execute("""
+                        INSERT INTO shipping (tray_id, tracking_number, ship_date)
+                        VALUES (?, ?, ?)
+                    """, (selected_tray[0], tracking_number, ship_date.strftime('%Y-%m-%d')))
+                    
+                    # Update work order status
+                    c.execute("UPDATE work_orders SET status = 'Shipped' WHERE id = ?", (selected_tray[3],))
+                    
+                    conn.commit()
+                    st.success(f"Shipment logged for Tray {selected_tray[0]}")
+                else:
+                    st.error("Please provide both tracking number and ship date.")
 
     # Display shipping log
+    st.subheader("Shipping Log")
     c.execute("""
-        SELECT t.customer, s.tracking_number, s.ship_date
+        SELECT s.id, t.customer, s.tracking_number, s.ship_date
         FROM shipping s
-        INNER JOIN trays t ON s.tray_id = t.id
+        JOIN trays t ON s.tray_id = t.id
         ORDER BY s.ship_date DESC
     """)
     shipping_log = c.fetchall()
-    
+
     if shipping_log:
-        st.subheader("Shipping Log")
-        df = pd.DataFrame(shipping_log, columns=['Customer', 'Tracking Number', 'Ship Date'])
+        df = pd.DataFrame(shipping_log, columns=['ID', 'Customer', 'Tracking Number', 'Ship Date'])
         st.dataframe(df)
     else:
         st.info("No shipments logged yet.")
