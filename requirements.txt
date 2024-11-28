@@ -1,6 +1,7 @@
-streamlit
-pandas
-plotly
-uuid
-slack
-streamlit-option-menu
+streamlit==1.24.0
+pandas==1.5.3
+plotly==5.15.0
+Pillow==9.5.0
+requests==2.31.0
+streamlit-option-menu==0.3.6
+slack_sdk==3.21.3
