@@ -1,0 +1,40 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Job {
+  id                 String   @id @default(uuid())
+  customer           String
+  analyst            String
+  date               DateTime
+  status             String
+  trayConfiguration  Json?
+  productionRecord   Json?
+  shipmentInfo       Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Inventory {
+  id           String   @id @default(uuid())
+  reagent      String
+  batchNumber  String
+  quantity     Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Equipment {
+  id          String   @id @default(uuid())
+  name        String
+  status      String
+  lastReading String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
