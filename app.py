@@ -7,8 +7,6 @@ from datetime import datetime
 from io import BytesIO
 import xlsxwriter
 
-   
-
 # Page config
 st.set_page_config(page_title="KCF Trays LIMS", page_icon="🧪", layout="wide")
    # Custom CSS
@@ -277,7 +275,7 @@ def display_results(config, selected_experiments):
     with col1:
         st.subheader("Tray Configuration")
         fig = create_tray_visualization(config)
-        st.plotly_chart(fig, use_container_width=true)
+        st.plotly_chart(fig, use_container_width=True)
 
     with col2:
         st.subheader("Results Summary")
