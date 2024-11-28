@@ -180,6 +180,7 @@ def main():
     with tabs[2]:
         shipping()
 
+
 def work_order_management():
     st.header("Work Order Management")
 
@@ -204,7 +205,9 @@ def work_order_management():
     c.execute("SELECT * FROM work_orders ORDER BY date DESC")
     work_orders = c.fetchall()
     if work_orders:
-        df = pd.DataFrame(work_orders, columns=['ID', 'Customer', 'Requester', 'Date', 'Status'])
+        # Ensure the number of columns matches the data
+        columns = ['ID', 'Customer', 'Requester', 'Date', 'Status']
+        df = pd.DataFrame(work_orders, columns=columns[:len(work_orders[0])])
         st.dataframe(df)
     else:
         st.info("No work orders found. Create a new work order to get started.")
