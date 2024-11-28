@@ -10,6 +10,68 @@ import xlsxwriter
 # Page config
 st.set_page_config(page_title="Reagent LIMS", page_icon="🧪", layout="wide")
 
+def search_and_reports():
+   st.header("Search & Reports")
+   
+   search_type = st.radio("Search By", 
+       ["Work Order", "Customer", "Date Range", "Status"],
+       key="search_type_radio"
+   )
+   
+   conn = create_connection()
+   c = conn.cursor()
+   
+   if search_type == "Work Order":
+       wo_id = st.text_input("Work Order ID", key="search_wo_id_input")
+       if wo_id:
+           results = search_by_wo(c, wo_id)
+           display_search_results(results)
+           
+   elif search_type == "Customer":
+       customer = st.text_input("Customer Name", key="search_customer_input")
+       if customer:
+           results = search_by_customer(c, customer)
+           display_search_results(results)
+           
+   elif search_type == "Date Range":
+       col1, col2 = st.columns(2)
+       start_date = col1.date_input("Start Date", key="search_start_date")
+       end_date = col2.date_input("End Date", key="search_end_date")
+       if st.button("Search", key="date_search_button"):
+           results = search_by_date(c, start_date, end_date)
+           display_search_results(results)
+   
+   else:  # Status
+       status = st.selectbox("Status", 
+           ["Created", "Configured", "Production Complete", "Shipped", "All"],
+           key="status_select"
+       )
+       if st.button("Search", key="status_search_button"):
+           results = search_by_status(c, status)
+           display_search_results(results)
+
+   st.divider()
+   
+   # Report generation 
+   st.subheader("Generate Reports")
+   report_type = st.selectbox("Report Type",
+       ["Work Order Summary", "Production Statistics", 
+        "Shipping Log", "Inventory Status"],
+       key="report_type_select"
+   )
+
+   if st.button("Generate Report", key="generate_report_button"):
+       if report_type == "Work Order Summary":
+           generate_wo_summary(c)
+       elif report_type == "Production Statistics":
+           generate_production_stats(c)  
+       elif report_type == "Shipping Log":
+           generate_shipping_log(c)
+       else:
+           generate_inventory_report(c)
+           
+   conn.close()
+
 def create_connection():
     return sqlite3.connect('reagent_lims.db')
 
