@@ -431,7 +431,8 @@ def configure_tray():
                 
                 # Extract the numeric IDs from the selected options
                 st.session_state.tray_state['selected_experiments'] = [
-                    exp.split(":")[0].strip() for exp in selected_experiments if ":" in exp
+                    exp.split(":")[0].strip() for exp in selected_experiments
+                    if exp.split(":")[0].strip().isdigit()
                 ]
 
                 if st.button("Optimize Configuration"):
