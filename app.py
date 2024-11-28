@@ -605,82 +605,111 @@ def manage_work_orders():
     conn.close()
 
 def configure_tray():
-    st.header("Tray Configuration")
-    
-    # Check session state first
-    if 'current_wo' in st.session_state:
-        wo_id = st.session_state.current_wo
-        conn = create_connection()
-        c = conn.cursor()
-        c.execute("SELECT id, customer, requester FROM work_orders WHERE id=?", (wo_id,))
-        wo = c.fetchone()
-        conn.close()
-        
-        if wo:
-            optimizer = ReagentOptimizer()
-            experiments = optimizer.get_available_experiments()
-            selected = st.multiselect("Select Experiments",
-                                    [f"{exp['id']}: {exp['name']}" for exp in experiments])
-        
-            if st.button("Optimize Configuration") and selected:
-                exp_ids = [int(exp.split(':')[0]) for exp in selected]
-                try:
-                    config = optimizer.optimize_tray_configuration(exp_ids)
-                    st.session_state.config = config
-                    st.session_state.current_wo = wo
-                    del st.session_state.current_wo 
-                
-                # Save configuration
-                c.execute("""INSERT INTO trays 
-                           (wo_id, customer, requester, date, configuration)
-                           VALUES (?, ?, ?, ?, ?)""",
-                        (wo[0], wo[1], wo[2], 
-                         datetime.now().strftime('%Y-%m-%d'), str(config)))
-                conn.commit()
-                
-                # Update inventory status
-                c.execute("""UPDATE inventory 
-                           SET status = 'Configured'
-                           WHERE wo_id = ?""", (wo[0],))
-                conn.commit()
-                
-                next_step, tab = get_next_step(wo[0])
-                st.success(f"Configuration saved. Next step: {next_step}")
-            except Exception as e:
-                st.error(f"Error: {e}")
+   st.header("Tray Configuration")
+   
+   # Check session state first
+   if 'current_wo' in st.session_state:
+       wo_id = st.session_state.current_wo
+       conn = create_connection()
+       c = conn.cursor()
+       c.execute("SELECT id, customer, requester FROM work_orders WHERE id=?", (wo_id,))
+       wo = c.fetchone()
+       conn.close()
+       
+       if wo:
+           optimizer = ReagentOptimizer()
+           experiments = optimizer.get_available_experiments()
+           selected = st.multiselect("Select Experiments",
+                                   [f"{exp['id']}: {exp['name']}" for exp in experiments])
+           
+           if st.button("Optimize Configuration") and selected:
+               exp_ids = [int(exp.split(':')[0]) for exp in selected]
+               try:
+                   config = optimizer.optimize_tray_configuration(exp_ids)
+                   st.session_state.config = config
+                   st.session_state.selected_wo = wo
+                   
+                   conn = create_connection()
+                   c = conn.cursor()
+                   # Save configuration
+                   c.execute("""INSERT INTO trays 
+                              (wo_id, customer, requester, date, configuration)
+                              VALUES (?, ?, ?, ?, ?)""",
+                           (wo[0], wo[1], wo[2], 
+                            datetime.now().strftime('%Y-%m-%d'), str(config)))
+                   
+                   # Update inventory status
+                   c.execute("""UPDATE inventory 
+                              SET status = 'Configured'
+                              WHERE wo_id = ?""", (wo[0],))
+                   conn.commit()
+                   
+                   next_step, tab = get_next_step(wo[0])
+                   st.success(f"Configuration saved. Next step: {next_step}")
+                   
+                   # Clear session state after successful configuration
+                   del st.session_state.current_wo
+                   
+               except Exception as e:
+                   st.error(f"Error: {e}")
+               finally:
+                   conn.close()
+                   
+           # Display configuration if available
+           if 'config' in st.session_state:
+               st.plotly_chart(create_tray_visualization(st.session_state.config))
+   
+   # Work order selection for new configurations
+   else:
+       conn = create_connection()
+       c = conn.cursor()
+       c.execute("""SELECT wo.id, wo.customer, wo.requester 
+                    FROM work_orders wo
+                    LEFT JOIN trays t ON wo.id = t.wo_id
+                    WHERE wo.status = 'Open' AND t.id IS NULL""")
+       pending_wo = c.fetchall()
+       
+       if not pending_wo:
+           st.info("No work orders pending configuration")
+           conn.close()
+           return
+       
+       st.info("Select a work order from the Work Orders tab to begin configuration")
+       conn.close()
 
-    # Search and display existing configurations
-    st.subheader("Search Existing Configurations")
-    search_cols = st.columns([2, 2, 1])
-    search_wo = search_cols[0].text_input("Work Order ID")
-    search_customer = search_cols[1].text_input("Customer Name")
-    
-    if search_wo or search_customer:
-        query = """SELECT t.*, wo.customer, wo.requester 
-                   FROM trays t
-                   JOIN work_orders wo ON t.wo_id = wo.id
-                   WHERE 1=1"""
-        params = []
-        
-        if search_wo:
-            query += " AND t.wo_id LIKE ?"
-            params.append(f"%{search_wo}%")
-        if search_customer:
-            query += " AND wo.customer LIKE ?"
-            params.append(f"%{search_customer}%")
-            
-        c.execute(query, params)
-        configs = c.fetchall()
-        
-        if configs:
-            for config in configs:
-                with st.expander(f"Configuration: {config[1]} - {config[5]}"):
-                    config_data = eval(config[5])  # Convert stored string to dict
-                    st.plotly_chart(create_tray_visualization(config_data))
-        else:
-            st.info("No configurations found")
-
-    conn.close()
+   # Search and display existing configurations section remains the same
+   st.subheader("Search Existing Configurations")
+   search_cols = st.columns([2, 2, 1])
+   search_wo = search_cols[0].text_input("Work Order ID")
+   search_customer = search_cols[1].text_input("Customer Name")
+   
+   if search_wo or search_customer:
+       conn = create_connection()
+       c = conn.cursor()
+       query = """SELECT t.*, wo.customer, wo.requester 
+                  FROM trays t
+                  JOIN work_orders wo ON t.wo_id = wo.id
+                  WHERE 1=1"""
+       params = []
+       
+       if search_wo:
+           query += " AND t.wo_id LIKE ?"
+           params.append(f"%{search_wo}%")
+       if search_customer:
+           query += " AND wo.customer LIKE ?"
+           params.append(f"%{search_customer}%")
+           
+       c.execute(query, params)
+       configs = c.fetchall()
+       
+       if configs:
+           for config in configs:
+               with st.expander(f"Configuration: {config[1]} - {config[5]}"):
+                   config_data = eval(config[5])
+                   st.plotly_chart(create_tray_visualization(config_data))
+       else:
+           st.info("No configurations found")
+       conn.close()
 
 def create_tray_visualization(config):
     # [Previous visualization code remains the same]
