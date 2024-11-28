@@ -271,29 +271,30 @@ def create_tray_visualization(config):
     return fig
 
 def display_results(config, selected_experiments):
-    st.markdown("### Tray Configuration and Results")
-    
-    # Use a container for better layout
+    # Responsive container for the chart and tables
     with st.container():
         # Chart Section
-        st.subheader("Tray Configuration")
+        st.markdown("### Tray Configuration")
         fig = create_tray_visualization(config)
         
-        # Adjust chart size
+        # Adjust chart size and make it responsive
         fig.update_layout(
-            height=800,  # Increased height
-            width=1200,  # Increased width
+            autosize=True,  # Make responsive
+            height=600,  # Adjust height
             title=dict(
                 text="Tray Configuration",
-                x=0.5,
+                x=0.5,  # Center title
                 font=dict(size=20)
             ),
-            margin=dict(l=40, r=40, t=40, b=40)
+            margin=dict(l=20, r=20, t=40, b=20)
         )
         st.plotly_chart(fig, use_container_width=True)
+
+        # Spacing between chart and tables
+        st.markdown("---")
         
         # Results Summary Table
-        st.subheader("Results Summary")
+        st.markdown("### Results Summary")
         tray_life = min(result["total_tests"] for result in config["results"].values())
         st.metric("Tray Life (Tests)", tray_life)
 
@@ -312,7 +313,7 @@ def display_results(config, selected_experiments):
         st.markdown("---")
         
         # Detailed Results
-        st.subheader("Detailed Results")
+        st.markdown("### Detailed Results")
         for exp_num, result in config["results"].items():
             with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
                 for i, set_info in enumerate(result["sets"]):
