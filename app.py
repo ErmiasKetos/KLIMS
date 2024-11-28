@@ -604,8 +604,8 @@ def manage_work_orders():
     st.dataframe(df, use_container_width=True)
     conn.close()
 
-def configure_tray():
-    if 'selected_experiments' not in st.session_state:
+def configure_tray(): 
+if 'selected_experiments' not in st.session_state:
         st.session_state.selected_experiments = []
    st.header("Tray Configuration")
    
