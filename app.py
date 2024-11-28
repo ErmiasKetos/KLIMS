@@ -261,13 +261,27 @@ def get_reagent_color(reagent_code):
 
 
 def create_tray_visualization(config):
-    locations = config["tray_locations"]
+    locations = config.get("tray_locations", [])  # Default to an empty list if missing
     fig = go.Figure()
 
     for i, loc in enumerate(locations):
-        row = i // 4
+        # Ensure loc is not None and has the required keys
+        if loc and isinstance(loc, dict):
+            reagent_code = loc.get("reagent_code", "Unknown")
+            tests_possible = loc.get("tests_possible", "N/A")
+            experiment = loc.get("experiment", "N/A")
+            color = get_reagent_color(reagent_code)
+            opacity = 0.8
+        else:
+            # Handle missing or invalid location data
+            reagent_code = "Empty"
+            tests_possible = "N/A"
+            experiment = "N/A"
+            color = "lightgray"
+            opacity = 0.2
+
+        row = i // 4  # Adjust rows for a 4-column layout
         col = i % 4
-        color = get_reagent_color(loc["reagent_code"]) if loc else "lightgray"
 
         fig.add_trace(
             go.Scatter(
@@ -275,14 +289,15 @@ def create_tray_visualization(config):
                 y=[row, row, row + 1, row + 1, row],
                 fill="toself",
                 fillcolor=color,
-                opacity=0.8 if loc else 0.2,
+                opacity=opacity,
                 line=dict(color="black", width=1),
                 mode="lines",
                 name=f"LOC-{i+1}",
-                text=f"LOC-{i+1}<br>{loc['reagent_code']}<br>Tests: {loc['tests_possible']}<br>Exp: #{loc['experiment']}",
+                text=f"LOC-{i+1}<br>{reagent_code}<br>Tests: {tests_possible}<br>Exp: #{experiment}",
                 hoverinfo="text",
             )
         )
+
     fig.update_layout(
         height=600,
         width=800,
