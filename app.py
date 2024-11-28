@@ -594,7 +594,7 @@ def manage_work_orders():
            conn.close()
 
 
-def configure_tray():
+
 def configure_tray():
     st.header("Tray Configuration")
     
