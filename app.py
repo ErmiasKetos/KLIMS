@@ -417,7 +417,26 @@ def create_connection():
     conn = sqlite3.connect('reagent_lims.db')
     return conn
 
+
 def setup_database():
+    conn = create_connection()
+    c = conn.cursor()
+    
+    # Drop existing tables if you need to rebuild
+    c.execute("DROP TABLE IF EXISTS shipping")
+    c.execute("DROP TABLE IF EXISTS production")
+    c.execute("DROP TABLE IF EXISTS trays")
+    c.execute("DROP TABLE IF EXISTS inventory")
+    c.execute("DROP TABLE IF EXISTS work_orders")
+    
+    # Create tables with updated schema
+    c.execute('''CREATE TABLE work_orders
+                 (id TEXT PRIMARY KEY,
+                  customer TEXT,
+                  requester TEXT,
+                  date TEXT,
+                  status TEXT)''')
+    
     conn = create_connection()
     c = conn.cursor()
     
