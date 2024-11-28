@@ -165,6 +165,7 @@ def reset_app():
         else:
             del st.session_state[key]
 
+
 def main():
     st.title("🧪 Reagent Tray LIMS")
     
