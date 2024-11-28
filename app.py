@@ -15,6 +15,16 @@ import os
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
+# Slack integration
+try:
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+    slack_token = os.environ.get("SLACK_BOT_TOKEN")
+    slack_client = WebClient(token=slack_token) if slack_token else None
+except ImportError:
+    st.warning("Slack SDK not installed. Slack notifications will be disabled.")
+    slack_client = None
+
 # Set page config
 st.set_page_config(
     page_title="Reagent Tray LIMS",
