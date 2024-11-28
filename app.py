@@ -65,63 +65,93 @@ def request_management():
 def tray_configuration():
     st.header("Tray Configuration")
     
-    # Select a request to configure
-    request_ids = [r['id'] for r in st.session_state.requests if r['status'] == 'Pending']
-    selected_request = st.selectbox("Select Request to Configure", request_ids)
+    optimizer = ReagentOptimizer()
     
-    if selected_request:
-        reagents = ['KR1E', 'KR1S', 'KR2S', 'KR3E', 'KR3S', 'KR10E1', 'KR10E2', 'KR10E3']
-        tray_config = [None] * 16
+    # Select experiments
+    available_experiments = optimizer.get_available_experiments()
+    selected_experiments = st.multiselect(
+        "Select Experiments",
+        options=[exp['id'] for exp in available_experiments],
+        format_func=lambda x: next(exp['name'] for exp in available_experiments if exp['id'] == x)
+    )
+    
+    if st.button("Optimize Configuration"):
+        if not selected_experiments:
+            st.warning("Please select at least one experiment.")
+        else:
+            try:
+                config = optimizer.optimize_tray_configuration(selected_experiments)
+                st.session_state.current_config = config
+                st.success("Tray configuration optimized successfully!")
+            except ValueError as e:
+                st.error(str(e))
+    
+    if 'current_config' in st.session_state:
+        config = st.session_state.current_config
         
-        st.subheader("Configure Tray")
-        cols = st.columns(4)
-        for i in range(16):
-            with cols[i % 4]:
-                tray_config[i] = st.selectbox(f"Chamber {i+1}", [''] + reagents, key=f"chamber_{i}")
-        
-        if st.button("Save Configuration"):
-            new_config = {
-                "id": generate_id(),
-                "request_id": selected_request,
-                "configuration": tray_config,
-                "date": datetime.now().strftime("%Y-%m-%d")
-            }
-            st.session_state.tray_configurations.append(new_config)
-            st.success("Tray configuration saved!")
-
         # Visualize tray configuration
-        if any(tray_config):
-            fig = go.Figure()
-            for i, reagent in enumerate(tray_config):
-                row = i // 4
-                col = i % 4
-                color = get_reagent_color(reagent) if reagent else 'lightgray'
-                opacity = 0.8 if reagent else 0.2
+        fig = go.Figure()
+        for i, loc in enumerate(config['tray_locations']):
+            row = i // 4
+            col = i % 4
+            color = get_reagent_color(loc['reagent_code']) if loc else 'lightgray'
+            opacity = 0.8 if loc else 0.2
 
-                fig.add_trace(go.Scatter(
-                    x=[col, col+1, col+1, col, col],
-                    y=[row, row, row+1, row+1, row],
-                    fill="toself",
-                    fillcolor=color,
-                    opacity=opacity,
-                    line=dict(color="black", width=1),
-                    mode="lines",
-                    name=f"Chamber {i+1}",
-                    text=f"Chamber {i+1}<br>{reagent if reagent else 'Empty'}",
-                    hoverinfo="text"
-                ))
+            fig.add_trace(go.Scatter(
+                x=[col, col+1, col+1, col, col],
+                y=[row, row, row+1, row+1, row],
+                fill="toself",
+                fillcolor=color,
+                opacity=opacity,
+                line=dict(color="black", width=1),
+                mode="lines",
+                name=f"LOC-{i+1}",
+                text=f"LOC-{i+1}<br>{loc['reagent_code'] if loc else 'Empty'}<br>Tests: {loc['tests_possible'] if loc else 'N/A'}<br>Exp: #{loc['experiment'] if loc else 'N/A'}",
+                hoverinfo="text"
+            ))
 
-            fig.update_layout(
-                title="Tray Configuration",
-                showlegend=False,
-                height=400,
-                width=600,
-                xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                plot_bgcolor="rgba(0,0,0,0)"
-            )
-            st.plotly_chart(fig)
+        fig.update_layout(
+            title="Optimized Tray Configuration",
+            showlegend=False,
+            height=600,
+            width=800,
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=20, r=20, t=40, b=20)
+        )
+        st.plotly_chart(fig)
 
+        # Display results summary
+        st.subheader("Results Summary")
+        tray_life = min(result["total_tests"] for result in config["results"].values())
+        st.metric("Tray Life (Tests)", tray_life)
+
+        for exp_num, result in config["results"].items():
+            with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
+                for i, set_info in enumerate(result["sets"]):
+                    st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
+                    set_df = pd.DataFrame([
+                        {
+                            "Reagent": placement["reagent_code"],
+                            "Location": f"LOC-{placement['location'] + 1}",
+                            "Tests Possible": placement["tests"]
+                        }
+                        for placement in set_info["placements"]
+                    ])
+                    st.dataframe(set_df)
+                    st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
+                    st.markdown("---")
+
+    # Option to save the configuration
+    if 'current_config' in st.session_state and st.button("Save Configuration"):
+        new_config = {
+            "id": generate_id(),
+            "configuration": st.session_state.current_config,
+            "date": datetime.now().strftime("%Y-%m-%d")
+        }
+        st.session_state.tray_configurations.append(new_config)
+        st.success("Tray configuration saved!")
 # Inventory Management
 def inventory_management():
     st.header("Inventory Management")
