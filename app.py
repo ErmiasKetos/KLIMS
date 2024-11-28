@@ -19,21 +19,27 @@ st.set_page_config(
 # Custom CSS for attractive formatting
 st.markdown("""
 <style>
+    .stTabs {
+        background-color: #f0f2f6;
+        padding: 10px 0px;
+        margin-bottom: 20px;
+    }
     .stTabs [data-baseweb="tab-list"] {
         gap: 2px;
+        overflow-x: auto;
     }
     .stTabs [data-baseweb="tab"] {
         height: 50px;
         white-space: pre-wrap;
-        background-color: #F0F2F6;
-        border-radius: 4px 4px 0 0;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-    }
-    .stTabs [aria-selected="true"] {
         background-color: #4CAF50;
         color: white;
+        border-radius: 4px;
+        gap: 1px;
+        padding: 10px 16px;
+        margin: 0px 2px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #45a049;
     }
     .stButton>button {
         background-color: #4CAF50;
@@ -51,6 +57,12 @@ st.markdown("""
         border-radius: 5px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
     }
+    .workflow-progress {
+        margin-bottom: 20px;
+    }
+    .workflow-progress .stProgress > div > div {
+        background-color: #4CAF50;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -67,11 +79,46 @@ c.execute('''CREATE TABLE IF NOT EXISTS production
              (id INTEGER PRIMARY KEY, tray_id INTEGER, start_date TEXT, end_date TEXT, status TEXT)''')
 c.execute('''CREATE TABLE IF NOT EXISTS shipping
              (id INTEGER PRIMARY KEY, tray_id INTEGER, tracking_number TEXT, ship_date TEXT)''')
+c.execute('''CREATE TABLE IF NOT EXISTS inventory
+             (id INTEGER PRIMARY KEY, reagent TEXT, batch_number TEXT, quantity INTEGER, date_added TEXT)''')
 conn.commit()
+
+def get_workflow_progress():
+    c.execute("SELECT COUNT(*) FROM work_orders WHERE status='Open'")
+    open_orders = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM production WHERE status='In Progress'")
+    in_progress = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM production WHERE status='Completed'")
+    completed = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM shipping")
+    shipped = c.fetchone()[0]
+    
+    total = open_orders + in_progress + completed + shipped
+    if total == 0:
+        return 0
+    
+    if shipped > 0:
+        return 100
+    elif completed > 0:
+        return 75
+    elif in_progress > 0:
+        return 50
+    elif open_orders > 0:
+        return 25
+    else:
+        return 0
 
 # Main function
 def main():
     st.title("🧪 Reagent Tray LIMS")
+
+    # Add workflow progress bar
+    progress = get_workflow_progress()
+    st.progress(progress / 100, "Workflow Progress")
+    st.write(f"Current Stage: {'Shipped' if progress == 100 else 'Packing' if progress >= 75 else 'In Progress' if progress >= 50 else 'Open' if progress >= 25 else 'No Active Orders'}")
 
     tabs = st.tabs(["Dashboard", "Work Orders", "Tray Configuration", "Inventory", "Production & QC", "Shipping & Logging"])
 
@@ -274,6 +321,8 @@ def get_reagent_color(reagent_code):
         if any(reagent_code.startswith(r) for r in reagents):
             return color
     return 'lightgray'  # Default color if not found
+
+
 
 def show_inventory():
     st.header("Inventory Management")
