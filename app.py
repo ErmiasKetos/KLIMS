@@ -262,7 +262,7 @@ def create_tray_visualization(config):
         showlegend=False,
         autosize=True,
         height=600,
-        width="100%",
+        width=1000,
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
