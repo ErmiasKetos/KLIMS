@@ -289,7 +289,72 @@ def create_tray_visualization(config):
     )
     return fig
 
+def display_results(config, selected_experiments):
+    # Left-align the tray configuration section with visual separation
+    st.markdown("### Tray Configuration and Results")
+    
+    # Add a visual separator (line or spacing)
+    st.markdown("<hr style='border: 1px solid #ddd; margin: 10px 0;'>", unsafe_allow_html=True)
 
+    # Chart Section
+    st.markdown("#### Tray Configuration")
+    fig = create_tray_visualization(config)
+    
+    # Adjust chart size and responsiveness
+    fig.update_layout(
+        autosize=True,  # Make responsive
+        height=600,  # Adjust height
+        title=dict(
+            text="Tray Configuration",
+            x=0.5,  # Center title
+            font=dict(size=20)
+        ),
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Spacing between chart and tables
+    st.markdown("<hr style='border: 1px solid #ddd; margin: 20px 0;'>", unsafe_allow_html=True)
+    
+    # Results Summary Table
+    st.markdown("#### Results Summary")
+    tray_life = min(result["total_tests"] for result in config["results"].values())
+    st.metric("Tray Life (Tests)", tray_life)
+
+    results_df = pd.DataFrame([
+        {
+            "Experiment": f"{result['name']} (#{exp_num})",
+            "Total Tests": result['total_tests']
+        }
+        for exp_num, result in config["results"].items()
+    ])
+    
+    # Full-width results table
+    st.dataframe(results_df, use_container_width=True)
+
+    # Spacing between sections
+    st.markdown("<hr style='border: 1px solid #ddd; margin: 20px 0;'>", unsafe_allow_html=True)
+    
+    # Detailed Results
+    st.markdown("#### Detailed Results")
+    for exp_num, result in config["results"].items():
+        with st.expander(f"{result['name']} (#{exp_num}) - {result['total_tests']} total tests"):
+            for i, set_info in enumerate(result["sets"]):
+                st.markdown(f"**{'Primary' if i == 0 else 'Additional'} Set {i+1}:**")
+                
+                set_df = pd.DataFrame([
+                    {
+                        "Reagent": placement["reagent_code"],
+                        "Location": f"LOC-{placement['location'] + 1}",
+                        "Tests Possible": placement["tests"]
+                    }
+                    for placement in set_info["placements"]
+                ])
+                
+                # Full-width detailed results table
+                st.dataframe(set_df, use_container_width=True)
+                st.markdown(f"**Tests from this set:** {set_info['tests_per_set']}")
+                st.markdown("<hr style='border: 0.5px dashed #ddd; margin: 10px 0;'>", unsafe_allow_html=True)
 
 
 
