@@ -387,6 +387,7 @@ def manage_work_orders():
             if selected_wo:
                 st.session_state.current_wo = selected_wo
                 st.session_state.current_tab = 2  # Switch to Tray Configuration tab
+
 def configure_tray():
     st.header("Tray Configuration")
     
@@ -394,8 +395,7 @@ def configure_tray():
     if 'tray_state' not in st.session_state:
         st.session_state.tray_state = {
             'config': None,
-            'selected_experiments': [],
-            'experiment_selection_initialized': False
+            'selected_experiments': []
         }
 
     # Show current work order info
@@ -416,17 +416,23 @@ def configure_tray():
                 optimizer = ReagentOptimizer()
                 experiments = optimizer.get_available_experiments()
                 
-                st.subheader("Select Experiments")
-                for exp in experiments:
-                    key = f"exp_{wo[0]}_{exp['id']}"
-                    if st.checkbox(f"{exp['id']}: {exp['name']}", 
-                                 key=key,
-                                 value=exp['id'] in st.session_state.tray_state['selected_experiments']):
-                        if exp['id'] not in st.session_state.tray_state['selected_experiments']:
-                            st.session_state.tray_state['selected_experiments'].append(exp['id'])
-                    else:
-                        if exp['id'] in st.session_state.tray_state['selected_experiments']:
-                            st.session_state.tray_state['selected_experiments'].remove(exp['id'])
+                # Replace checkboxes with a dropdown multiselect
+                experiment_options = [f"{exp['id']}: {exp['name']}" for exp in experiments]
+                selected_experiments = st.multiselect(
+                    "Select Experiments for Tray Configuration:",
+                    options=experiment_options,
+                    default=[
+                        f"{exp['id']}: {exp['name']}" 
+                        for exp in experiments 
+                        if exp['id'] in st.session_state.tray_state['selected_experiments']
+                    ],
+                    key="experiment_selection"
+                )
+                
+                # Convert selected experiments to their IDs
+                st.session_state.tray_state['selected_experiments'] = [
+                    exp.split(":")[0] for exp in selected_experiments
+                ]
 
                 if st.button("Optimize Configuration"):
                     if st.session_state.tray_state['selected_experiments']:
@@ -455,6 +461,7 @@ def configure_tray():
                         st.session_state.tray_state['config'],
                         st.session_state.tray_state['selected_experiments']
                     )
+
 
 def save_configuration(wo_id, customer, requester, config):
     conn = create_connection()
