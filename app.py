@@ -62,7 +62,7 @@ def search_and_reports():
            display_search_results(results)
            
    elif search_type == "Date Range":
-       col1, col2 = st.columns(2)
+       ol1, col2 = st.columns([2, 1])
        start_date = col1.date_input("Start Date", key="search_start_date")
        end_date = col2.date_input("End Date", key="search_end_date")
        if st.button("Search", key="date_search_button"):
@@ -260,8 +260,9 @@ def create_tray_visualization(config):
     fig.update_layout(
         title="Tray Configuration",
         showlegend=False,
+        autosize=True,
         height=600,
-        width=800,
+        width="100%"
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
         plot_bgcolor="rgba(0,0,0,0)",
