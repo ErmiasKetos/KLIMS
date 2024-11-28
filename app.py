@@ -786,7 +786,87 @@ def display_recent_activity(c):
 
 def manage_production():
     st.header("Manage Production")
-    st.info("This section is under development. Features will be added soon.")
+
+    conn = create_connection()
+    c = conn.cursor()
+
+    # Fetch trays that are pending production
+    c.execute("""
+        SELECT 
+            t.id AS tray_id,
+            wo.id AS work_order_id,
+            wo.customer,
+            t.date,
+            p.status AS production_status
+        FROM trays t
+        JOIN work_orders wo ON t.wo_id = wo.id
+        LEFT JOIN production p ON t.id = p.tray_id
+        WHERE p.status IS NULL OR p.status != 'Complete'
+        ORDER BY t.date ASC
+    """)
+    pending_trays = c.fetchall()
+
+    if not pending_trays:
+        st.info("No trays pending production.")
+        return
+
+    # Show pending trays
+    st.markdown("### Pending Trays for Production")
+    tray_df = pd.DataFrame(pending_trays, columns=[
+        "Tray ID", "Work Order ID", "Customer", "Date", "Production Status"
+    ])
+    st.dataframe(tray_df, use_container_width=True)
+
+    # Select a tray to manage
+    selected_tray = st.selectbox(
+        "Select a Tray to Manage:",
+        options=pending_trays,
+        format_func=lambda x: f"Tray {x[0]} - Work Order {x[1]} for {x[2]}",
+    )
+
+    if selected_tray:
+        tray_id = selected_tray[0]
+        st.markdown(f"### Managing Tray {tray_id}")
+
+        # Define production steps
+        production_steps = [
+            "Reagent Loading",
+            "Sealing",
+            "Labeling",
+            "QC Check",
+        ]
+
+        # Manage progress through steps
+        step_progress = {}
+        for step in production_steps:
+            step_progress[step] = st.checkbox(step, key=f"{tray_id}_{step}")
+
+        # Complete Production Button
+        if st.button("Complete Production"):
+            if all(step_progress.values()):
+                mark_production_complete(tray_id)
+                st.success(f"Tray {tray_id} marked as Production Complete!")
+                st.experimental_rerun()
+            else:
+                st.warning("Please complete all steps before marking production as complete.")
+
+    conn.close()
+
+
+def mark_production_complete(tray_id):
+    conn = create_connection()
+    c = conn.cursor()
+    try:
+        now = datetime.now().strftime('%Y-%m-%d')
+        c.execute("""
+            INSERT INTO production (tray_id, start_date, end_date, status)
+            VALUES (?, ?, ?, ?)
+        """, (tray_id, now, now, 'Complete'))
+        conn.commit()
+    except Exception as e:
+        st.error(f"Error updating production status: {e}")
+    finally:
+        conn.close()
 
 def main():
     st.title("🧪 Reagent LIMS")
