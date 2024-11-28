@@ -52,34 +52,7 @@ def search_and_reports():
 
    st.divider()
 
-   # Custom CSS
-st.markdown("""
-<style>
-    .stApp {
-        background-color: #f0f2f6;
-    }
-    .main {
-        padding: 2rem;
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
-    }
-    .stExpander {
-        background-color: white;
-        border-radius: 5px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .css-1d391kg {
-        padding-top: 3rem;
-    }
-</style>
-""", unsafe_allow_html=True)
-   
+
    # Report generation 
    st.subheader("Generate Reports")
    report_type = st.selectbox("Report Type",
