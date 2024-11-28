@@ -178,6 +178,23 @@ def setup_database():
     conn.commit()
     conn.close()
 
+def save_configuration_to_inventory(wo_id, config):
+    """Saves the tray configuration to the inventory table."""
+    conn = create_connection()
+    c = conn.cursor()
+    try:
+        # Save the configuration as a string in the inventory table
+        c.execute("""
+            UPDATE inventory 
+            SET configuration = ? 
+            WHERE wo_id = ?
+        """, (str(config), wo_id))
+        conn.commit()
+    except Exception as e:
+        st.error(f"Error saving configuration to inventory: {e}")
+    finally:
+        conn.close()
+
 def generate_wo_number():
     conn = create_connection()
     c = conn.cursor()
