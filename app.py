@@ -920,7 +920,7 @@ def render_status_bar(wo_id):
 
 
 def main():
-    st.title("🧪 Reagent LIMS")
+    st.title("🧪 KCF LIMS")
 
     # Initialize session state for the current work order if not already set
     if "current_wo" not in st.session_state:
